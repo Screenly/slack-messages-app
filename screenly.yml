@@ -1,0 +1,82 @@
+---
+syntax: manifest_v1
+id: WCQE1WHVBX5TFV3V5VZ8Q2DTYX
+description: Display messages from one or more Slack channels on your Screenly screens
+icon: https://playground.srly.io/edge-apps/icons/slack-messages.svg
+author: Screenly, Inc.
+categories:
+- Communication
+ready_signal: true
+settings:
+  access_token:
+    type: secret
+    title: Access Token
+    optional: true
+    help_text:
+      properties:
+        help_text: For testing only. In production, the access token should be fetched dynamically via the API.
+        type: oauth:slack:access_token
+      schema_version: 1
+  channel_ids:
+    type: string
+    title: Channel IDs
+    optional: false
+    help_text:
+      properties:
+        help_text: Comma-separated list of Slack channel IDs to display messages from (e.g. C0123ABCDEF, C0456GHIJKL). Select multiple channels to show messages from all of them.
+        type: oauth:slack:channel_ids
+      schema_version: 1
+  display_errors:
+    type: string
+    default_value: 'false'
+    title: Display Errors
+    optional: true
+    help_text:
+      properties:
+        advanced: true
+        help_text: For debugging purposes to display errors on the screen.
+        type: boolean
+      schema_version: 1
+  message_limit:
+    type: string
+    default_value: '10'
+    title: Messages Per Channel
+    optional: true
+    help_text:
+      properties:
+        advanced: true
+        help_text: Maximum number of recent messages to show per channel. Defaults to 10.
+        type: number
+      schema_version: 1
+  refresh_interval:
+    type: string
+    default_value: '60'
+    title: Refresh Interval (seconds)
+    optional: true
+    help_text:
+      properties:
+        advanced: true
+        help_text: How often to refresh Slack messages. Defaults to 60 seconds.
+        type: number
+      schema_version: 1
+  sentry_dsn:
+    type: secret
+    title: Sentry DSN
+    optional: true
+    is_global: true
+    help_text:
+      properties:
+        advanced: true
+        help_text: Sentry DSN for reporting credential and content-load errors. Leave empty to disable.
+        type: string
+      schema_version: 1
+  show_sender_names:
+    type: string
+    default_value: 'true'
+    title: Show Sender Names
+    optional: true
+    help_text:
+      properties:
+        help_text: Resolve and display the name of each message's sender.
+        type: boolean
+      schema_version: 1

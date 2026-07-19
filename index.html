@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Slack Messages - Screenly Edge App</title>
+    <script src="screenly.js?version=1"></script>
+  </head>
+  <body>
+    <auto-scaler
+      reference-width="1920"
+      reference-height="1080"
+      orientation="auto"
+    >
+      <div id="app">
+        <app-header class="header" show-date></app-header>
+
+        <main>
+          <!-- Feed screen: shown after messages load -->
+          <div id="feed-screen" style="display: none">
+            <div id="channels-grid"></div>
+          </div>
+
+          <!-- Error screen -->
+          <div id="error-screen" style="display: none">
+            <div class="error-card">
+              <div class="error-card-left">
+                <h2>Something went wrong</h2>
+                <p>
+                  Slack messages could not be loaded. Please check your
+                  configuration or contact your administrator.
+                </p>
+              </div>
+              <div class="error-card-right">
+                <div class="error-detail-label">Error details</div>
+                <p id="error-message" class="error-detail-message"></p>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </auto-scaler>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
