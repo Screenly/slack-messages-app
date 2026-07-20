@@ -29,7 +29,8 @@ function handleError(message: string, displayErrors: boolean): void {
 
 async function fetchLatestMessage(
   accessToken: string,
-  channelId: string
+  channelId: string,
+  fetchPermalink: boolean
 ): Promise<{ message: SlackMessage; permalink: string | null } | null> {
   const messages = await getConversationHistory(
     accessToken,
@@ -40,11 +41,13 @@ async function fetchLatestMessage(
   if (!message) return null
 
   let permalink: string | null = null
-  try {
-    permalink = await getMessagePermalink(accessToken, channelId, message.ts)
-  } catch (err) {
-    if (err instanceof AuthError) throw err
-    reportError(err, { source: 'slack-permalink', channelId })
+  if (fetchPermalink) {
+    try {
+      permalink = await getMessagePermalink(accessToken, channelId, message.ts)
+    } catch (err) {
+      if (err instanceof AuthError) throw err
+      reportError(err, { source: 'slack-permalink', channelId })
+    }
   }
 
   return { message, permalink }
@@ -52,13 +55,16 @@ async function fetchLatestMessage(
 
 async function fetchAllLatestMessages(
   accessToken: string,
-  channelIds: string[]
+  channelIds: string[],
+  fetchPermalink: boolean
 ): Promise<{
   results: { message: SlackMessage; permalink: string | null }[]
   authError: boolean
 }> {
   const settled = await Promise.allSettled(
-    channelIds.map((channelId) => fetchLatestMessage(accessToken, channelId))
+    channelIds.map((channelId) =>
+      fetchLatestMessage(accessToken, channelId, fetchPermalink)
+    )
   )
 
   const results: { message: SlackMessage; permalink: string | null }[] = []
@@ -124,7 +130,11 @@ async function fetchAndRender(
     return
   }
 
-  const initialFetch = await fetchAllLatestMessages(accessToken, channelIds)
+  const initialFetch = await fetchAllLatestMessages(
+    accessToken,
+    channelIds,
+    showQrCode
+  )
   let results = initialFetch.results
   const authError = initialFetch.authError
 
@@ -138,7 +148,11 @@ async function fetchAndRender(
         return
       }
 
-      ;({ results } = await fetchAllLatestMessages(accessToken, channelIds))
+      ;({ results } = await fetchAllLatestMessages(
+        accessToken,
+        channelIds,
+        showQrCode
+      ))
     } catch (retryErr) {
       handleError(
         retryErr instanceof Error

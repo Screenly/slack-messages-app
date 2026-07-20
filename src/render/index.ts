@@ -6,7 +6,15 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 })
 
+const DEFAULT_ROTATION_SECONDS = 15
+
 let rotationTimer: ReturnType<typeof setInterval> | undefined
+
+function sanitizeRotationSeconds(rotationSeconds: number): number {
+  return Number.isFinite(rotationSeconds) && rotationSeconds > 0
+    ? rotationSeconds
+    : DEFAULT_ROTATION_SECONDS
+}
 
 function formatTimestamp(ts: string): string {
   const millis = Number.parseFloat(ts) * 1000
@@ -22,9 +30,14 @@ function createQrCodePanel(permalink: string): HTMLElement {
   qr.addData(permalink)
   qr.make()
 
+  const svgDoc = new DOMParser().parseFromString(
+    qr.createSvgTag({ scalable: true }),
+    'image/svg+xml'
+  )
+
   const code = document.createElement('div')
   code.className = 'qr-code'
-  code.innerHTML = qr.createSvgTag({ scalable: true })
+  code.replaceChildren(document.importNode(svgDoc.documentElement, true))
   panel.appendChild(code)
 
   const caption = document.createElement('div')
@@ -100,10 +113,13 @@ export function renderAnnouncements(
   showCurrent()
 
   if (announcements.length > 1) {
-    rotationTimer = setInterval(() => {
-      index = (index + 1) % announcements.length
-      showCurrent()
-    }, rotationSeconds * 1000)
+    rotationTimer = setInterval(
+      () => {
+        index = (index + 1) % announcements.length
+        showCurrent()
+      },
+      sanitizeRotationSeconds(rotationSeconds) * 1000
+    )
   }
 }
 
