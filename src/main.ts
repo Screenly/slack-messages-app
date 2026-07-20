@@ -27,6 +27,8 @@ setupSentry('slack-messages', {
 
 // A message's permalink never changes, so cache it by channel + timestamp to
 // avoid re-fetching on every refresh when the latest message hasn't changed.
+// Bounded so a device running for weeks/months doesn't grow this forever.
+const MAX_PERMALINK_CACHE_ENTRIES = 50
 const permalinkCache = new Map<string, Promise<string>>()
 
 function getCachedPermalink(
@@ -44,6 +46,11 @@ function getCachedPermalink(
       throw err
     }
   )
+
+  if (permalinkCache.size >= MAX_PERMALINK_CACHE_ENTRIES) {
+    const oldestKey = permalinkCache.keys().next().value
+    if (oldestKey !== undefined) permalinkCache.delete(oldestKey)
+  }
   permalinkCache.set(key, promise)
   return promise
 }
