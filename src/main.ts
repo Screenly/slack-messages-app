@@ -16,7 +16,10 @@ import { createSenderNameResolver } from './users'
 import type { SenderNameResolver } from './users'
 import type { SlackMessage, RenderableAnnouncement } from './types'
 
-const LATEST_MESSAGE_LIMIT = 1
+// Slack's history filters out subtype 'channel_join' events client-side, so
+// fetch a small buffer beyond the single message we render in case the most
+// recent event is a join rather than an actual message.
+const HISTORY_FETCH_LIMIT = 10
 
 setupSentry('slack-messages', {
   'slack-messages': { screenName: screenly.metadata.screen_name },
@@ -35,7 +38,7 @@ async function fetchLatestMessage(
   const messages = await getConversationHistory(
     accessToken,
     channelId,
-    LATEST_MESSAGE_LIMIT
+    HISTORY_FETCH_LIMIT
   )
   const message = messages[0]
   if (!message) return null

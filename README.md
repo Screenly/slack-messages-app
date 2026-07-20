@@ -1,6 +1,6 @@
 # Slack Messages App
 
-Displays the latest message from one or more Slack channels, full screen, on your Screenly digital signage screens using the Slack Web API. Built for sharing announcements — for example, a private channel dedicated to a set of screens — rather than following high-traffic channels. The channel itself is never shown on screen, only the message, its sender, and a QR code linking back to it on Slack.
+Displays the latest message from one or more Slack channels, full screen, on your Screenly digital signage screens using the Slack Web API. Built for sharing announcements — for example, a private channel dedicated to a set of screens — rather than following high-traffic channels. The channel itself is never shown on screen — only the message text, and optionally its sender's name and a QR code linking back to it on Slack.
 
 ![Slack Messages App Preview](screenshots/message-3840x2160.webp)
 
