@@ -9,6 +9,7 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
 const DEFAULT_ROTATION_SECONDS = 15
 
 let rotationTimer: ReturnType<typeof setInterval> | undefined
+let rotationIndex = 0
 
 function sanitizeRotationSeconds(rotationSeconds: number): number {
   return Number.isFinite(rotationSeconds) && rotationSeconds > 0
@@ -100,13 +101,23 @@ export function renderAnnouncements(
   }
 
   screen.innerHTML = ''
-  if (announcements.length === 0) return
+  if (announcements.length === 0) {
+    rotationIndex = 0
+    return
+  }
 
-  let index = 0
+  // Keep the rotation position across re-renders (e.g. periodic refreshes)
+  // instead of resetting to the first announcement every time.
+  rotationIndex = rotationIndex % announcements.length
+
   const showCurrent = () => {
     screen.innerHTML = ''
     screen.appendChild(
-      createAnnouncementCard(announcements[index], showSenderName, showQrCode)
+      createAnnouncementCard(
+        announcements[rotationIndex],
+        showSenderName,
+        showQrCode
+      )
     )
   }
 
@@ -115,7 +126,7 @@ export function renderAnnouncements(
   if (announcements.length > 1) {
     rotationTimer = setInterval(
       () => {
-        index = (index + 1) % announcements.length
+        rotationIndex = (rotationIndex + 1) % announcements.length
         showCurrent()
       },
       sanitizeRotationSeconds(rotationSeconds) * 1000
