@@ -16,14 +16,37 @@ import { createSenderNameResolver } from './users'
 import type { SenderNameResolver } from './users'
 import type { SlackMessage, RenderableAnnouncement } from './types'
 
-// Slack's history filters out subtype 'channel_join' events client-side, so
-// fetch a small buffer beyond the single message we render in case the most
-// recent event is a join rather than an actual message.
+// getConversationHistory() (src/api.ts) filters out subtype 'channel_join'
+// events, so fetch a small buffer beyond the single message we render in
+// case the most recent event is a join rather than an actual message.
 const HISTORY_FETCH_LIMIT = 10
 
 setupSentry('slack-messages', {
   'slack-messages': { screenName: screenly.metadata.screen_name },
 })
+
+// A message's permalink never changes, so cache it by channel + timestamp to
+// avoid re-fetching on every refresh when the latest message hasn't changed.
+const permalinkCache = new Map<string, Promise<string>>()
+
+function getCachedPermalink(
+  accessToken: string,
+  channelId: string,
+  messageTs: string
+): Promise<string> {
+  const key = `${channelId}:${messageTs}`
+  const cached = permalinkCache.get(key)
+  if (cached) return cached
+
+  const promise = getMessagePermalink(accessToken, channelId, messageTs).catch(
+    (err) => {
+      permalinkCache.delete(key)
+      throw err
+    }
+  )
+  permalinkCache.set(key, promise)
+  return promise
+}
 
 function handleError(message: string, displayErrors: boolean): void {
   if (displayErrors) throw new Error(message)
@@ -46,7 +69,7 @@ async function fetchLatestMessage(
   let permalink: string | null = null
   if (fetchPermalink) {
     try {
-      permalink = await getMessagePermalink(accessToken, channelId, message.ts)
+      permalink = await getCachedPermalink(accessToken, channelId, message.ts)
     } catch (err) {
       if (err instanceof AuthError) throw err
       reportError(err, { source: 'slack-permalink', channelId })
