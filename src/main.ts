@@ -7,14 +7,16 @@ import {
   signalReady,
 } from '@screenly/edge-apps'
 import { reportError, setupSentry } from '@screenly/edge-apps/utils'
-import { AuthError, getConversationHistory, getConversationInfo } from './api'
+import { AuthError, getConversationHistory, getMessagePermalink } from './api'
 import { parseChannelIds } from './content'
 import { createCredentialManager } from './credentials'
 import type { RefreshToken, RuntimeState } from './credentials'
-import { renderFeeds, showScreen, showError } from './render'
+import { renderAnnouncements, showScreen, showError } from './render'
 import { createSenderNameResolver } from './users'
 import type { SenderNameResolver } from './users'
-import type { ChannelFeed, RenderableChannelFeed } from './types'
+import type { SlackMessage, RenderableAnnouncement } from './types'
+
+const LATEST_MESSAGE_LIMIT = 1
 
 setupSentry('slack-messages', {
   'slack-messages': { screenName: screenly.metadata.screen_name },
@@ -25,35 +27,46 @@ function handleError(message: string, displayErrors: boolean): void {
   showError(message)
 }
 
-async function fetchChannelFeed(
+async function fetchLatestMessage(
   accessToken: string,
-  channelId: string,
-  limit: number
-): Promise<ChannelFeed> {
-  const [channel, messages] = await Promise.all([
-    getConversationInfo(accessToken, channelId),
-    getConversationHistory(accessToken, channelId, limit),
-  ])
-  return { channel, messages }
+  channelId: string
+): Promise<{ message: SlackMessage; permalink: string | null } | null> {
+  const messages = await getConversationHistory(
+    accessToken,
+    channelId,
+    LATEST_MESSAGE_LIMIT
+  )
+  const message = messages[0]
+  if (!message) return null
+
+  let permalink: string | null = null
+  try {
+    permalink = await getMessagePermalink(accessToken, channelId, message.ts)
+  } catch (err) {
+    if (err instanceof AuthError) throw err
+    reportError(err, { source: 'slack-permalink', channelId })
+  }
+
+  return { message, permalink }
 }
 
-async function fetchAllFeeds(
+async function fetchAllLatestMessages(
   accessToken: string,
-  channelIds: string[],
-  limit: number
-): Promise<{ feeds: ChannelFeed[]; authError: boolean }> {
-  const results = await Promise.allSettled(
-    channelIds.map((channelId) =>
-      fetchChannelFeed(accessToken, channelId, limit)
-    )
+  channelIds: string[]
+): Promise<{
+  results: { message: SlackMessage; permalink: string | null }[]
+  authError: boolean
+}> {
+  const settled = await Promise.allSettled(
+    channelIds.map((channelId) => fetchLatestMessage(accessToken, channelId))
   )
 
-  const feeds: ChannelFeed[] = []
+  const results: { message: SlackMessage; permalink: string | null }[] = []
   let authError = false
 
-  results.forEach((result, index) => {
+  settled.forEach((result, index) => {
     if (result.status === 'fulfilled') {
-      feeds.push(result.value)
+      if (result.value) results.push(result.value)
       return
     }
 
@@ -68,36 +81,33 @@ async function fetchAllFeeds(
     })
   })
 
-  return { feeds, authError }
+  return { results, authError }
 }
 
-async function toRenderableFeeds(
+async function toRenderableAnnouncements(
   accessToken: string,
-  feeds: ChannelFeed[],
+  results: { message: SlackMessage; permalink: string | null }[],
   showSenderNames: boolean,
   resolveSenderName: SenderNameResolver
-): Promise<RenderableChannelFeed[]> {
+): Promise<RenderableAnnouncement[]> {
   return Promise.all(
-    feeds.map(async (feed) => ({
-      channel: feed.channel,
-      messages: await Promise.all(
-        feed.messages.map(async (message) => ({
-          ts: message.ts,
-          text: message.text,
-          senderName:
-            showSenderNames && message.user
-              ? await resolveSenderName(accessToken, message.user)
-              : (message.username ?? message.user ?? 'Unknown'),
-        }))
-      ),
+    results.map(async ({ message, permalink }) => ({
+      ts: message.ts,
+      text: message.text,
+      senderName:
+        showSenderNames && message.user
+          ? await resolveSenderName(accessToken, message.user)
+          : (message.username ?? message.user ?? 'Unknown'),
+      permalink,
     }))
   )
 }
 
 async function fetchAndRender(
   channelIds: string[],
-  limit: number,
   showSenderNames: boolean,
+  showQrCode: boolean,
+  rotationSeconds: number,
   getRuntimeState: () => RuntimeState,
   refreshToken: RefreshToken,
   resolveSenderName: SenderNameResolver,
@@ -114,8 +124,8 @@ async function fetchAndRender(
     return
   }
 
-  const initialFetch = await fetchAllFeeds(accessToken, channelIds, limit)
-  let feeds = initialFetch.feeds
+  const initialFetch = await fetchAllLatestMessages(accessToken, channelIds)
+  let results = initialFetch.results
   const authError = initialFetch.authError
 
   if (authError) {
@@ -128,7 +138,7 @@ async function fetchAndRender(
         return
       }
 
-      ;({ feeds } = await fetchAllFeeds(accessToken, channelIds, limit))
+      ;({ results } = await fetchAllLatestMessages(accessToken, channelIds))
     } catch (retryErr) {
       handleError(
         retryErr instanceof Error
@@ -140,20 +150,25 @@ async function fetchAndRender(
     }
   }
 
-  if (feeds.length === 0) {
+  if (results.length === 0) {
     handleError('No channel messages could be loaded.', displayErrors)
     return
   }
 
-  const renderableFeeds = await toRenderableFeeds(
+  const announcements = await toRenderableAnnouncements(
     accessToken,
-    feeds,
+    results,
     showSenderNames,
     resolveSenderName
   )
 
-  renderFeeds(renderableFeeds)
-  showScreen('feed-screen')
+  renderAnnouncements(
+    announcements,
+    showSenderNames,
+    showQrCode,
+    rotationSeconds
+  )
+  showScreen('message-screen')
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -162,10 +177,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   const rawChannelIds = getSettingWithDefault<string>('channel_ids', '')
   const displayErrors =
     getSettingWithDefault<string>('display_errors', 'false') === 'true'
-  const messageLimit = getSettingWithDefault<number>('message_limit', 10)
   const refreshInterval = getSettingWithDefault<number>('refresh_interval', 60)
   const showSenderNames =
     getSettingWithDefault<string>('show_sender_names', 'true') === 'true'
+  const showQrCode =
+    getSettingWithDefault<string>('show_qr_code', 'true') === 'true'
+  const rotationSeconds = getSettingWithDefault<number>(
+    'message_display_duration',
+    15
+  )
 
   let channelIds: string[]
   try {
@@ -194,8 +214,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const run = () =>
     fetchAndRender(
       channelIds,
-      messageLimit,
       showSenderNames,
+      showQrCode,
+      rotationSeconds,
       getRuntimeState,
       refreshToken,
       resolveSenderName,

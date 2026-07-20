@@ -1,9 +1,12 @@
-import type { RenderableChannelFeed, RenderableMessage } from '../types'
+import qrcode from 'qrcode-generator'
+import type { RenderableAnnouncement } from '../types'
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
   hour: 'numeric',
   minute: '2-digit',
 })
+
+let rotationTimer: ReturnType<typeof setInterval> | undefined
 
 function formatTimestamp(ts: string): string {
   const millis = Number.parseFloat(ts) * 1000
@@ -11,76 +14,101 @@ function formatTimestamp(ts: string): string {
   return timeFormatter.format(new Date(millis))
 }
 
-function createMessageElement(
-  senderName: string,
-  text: string,
-  ts: string
-): HTMLElement {
-  const message = document.createElement('div')
-  message.className = 'message'
+function createQrCodePanel(permalink: string): HTMLElement {
+  const panel = document.createElement('div')
+  panel.className = 'announcement-qr'
 
-  const sender = document.createElement('div')
-  sender.className = 'message-sender'
-  sender.textContent = senderName
+  const qr = qrcode(0, 'M')
+  qr.addData(permalink)
+  qr.make()
 
-  const time = document.createElement('span')
-  time.className = 'message-time'
-  time.textContent = formatTimestamp(ts)
-  sender.appendChild(time)
+  const code = document.createElement('div')
+  code.className = 'qr-code'
+  code.innerHTML = qr.createSvgTag({ scalable: true })
+  panel.appendChild(code)
 
-  const body = document.createElement('div')
-  body.className = 'message-text'
-  body.textContent = text
+  const caption = document.createElement('div')
+  caption.className = 'qr-caption'
+  caption.textContent = 'Scan to view on Slack'
+  panel.appendChild(caption)
 
-  message.append(sender, body)
-  return message
+  return panel
 }
 
-function createChannelCard(
-  channelName: string,
-  messages: RenderableMessage[]
+function createAnnouncementCard(
+  announcement: RenderableAnnouncement,
+  showSenderName: boolean,
+  showQrCode: boolean
 ): HTMLElement {
   const card = document.createElement('div')
-  card.className = 'channel-card'
+  card.className = 'announcement-card'
 
-  const header = document.createElement('div')
-  header.className = 'channel-header'
-  header.textContent = `#${channelName}`
-  card.appendChild(header)
+  const content = document.createElement('div')
+  content.className = 'announcement-content'
 
-  const list = document.createElement('div')
-  list.className = 'messages-list'
-
-  if (messages.length === 0) {
-    const empty = document.createElement('div')
-    empty.className = 'empty-state'
-    empty.textContent = 'No messages yet.'
-    list.appendChild(empty)
-  } else {
-    for (const { senderName, text, ts } of messages) {
-      list.appendChild(createMessageElement(senderName, text, ts))
-    }
+  if (showSenderName) {
+    const sender = document.createElement('div')
+    sender.className = 'announcement-sender'
+    sender.textContent = announcement.senderName
+    content.appendChild(sender)
   }
 
-  card.appendChild(list)
+  const text = document.createElement('div')
+  text.className = 'announcement-text'
+  text.textContent = announcement.text
+  content.appendChild(text)
+
+  const time = document.createElement('div')
+  time.className = 'announcement-time'
+  time.textContent = formatTimestamp(announcement.ts)
+  content.appendChild(time)
+
+  card.appendChild(content)
+
+  if (showQrCode && announcement.permalink) {
+    card.appendChild(createQrCodePanel(announcement.permalink))
+  }
+
   return card
 }
 
-export function renderFeeds(feeds: RenderableChannelFeed[]): void {
-  const channelsGrid = document.getElementById('channels-grid')
-  if (!channelsGrid) return
+export function renderAnnouncements(
+  announcements: RenderableAnnouncement[],
+  showSenderName: boolean,
+  showQrCode: boolean,
+  rotationSeconds: number
+): void {
+  const screen = document.getElementById('message-screen')
+  if (!screen) return
 
-  channelsGrid.innerHTML = ''
+  if (rotationTimer) {
+    clearInterval(rotationTimer)
+    rotationTimer = undefined
+  }
 
-  for (const feed of feeds) {
-    channelsGrid.appendChild(
-      createChannelCard(feed.channel.name, feed.messages)
+  screen.innerHTML = ''
+  if (announcements.length === 0) return
+
+  let index = 0
+  const showCurrent = () => {
+    screen.innerHTML = ''
+    screen.appendChild(
+      createAnnouncementCard(announcements[index], showSenderName, showQrCode)
     )
+  }
+
+  showCurrent()
+
+  if (announcements.length > 1) {
+    rotationTimer = setInterval(() => {
+      index = (index + 1) % announcements.length
+      showCurrent()
+    }, rotationSeconds * 1000)
   }
 }
 
 export function showScreen(screenId: string): void {
-  const screens = ['feed-screen', 'error-screen']
+  const screens = ['message-screen', 'error-screen']
   screens.forEach((id) => {
     const el = document.getElementById(id)
     if (el) el.style.display = id === screenId ? 'flex' : 'none'
@@ -88,6 +116,10 @@ export function showScreen(screenId: string): void {
 }
 
 export function showError(message: string): void {
+  if (rotationTimer) {
+    clearInterval(rotationTimer)
+    rotationTimer = undefined
+  }
   showScreen('error-screen')
   const el = document.getElementById('error-message')
   if (el) el.textContent = message

@@ -1,5 +1,5 @@
 import { getCorsProxyUrl } from '@screenly/edge-apps'
-import type { SlackChannel, SlackMessage } from './types'
+import type { SlackMessage } from './types'
 
 const SLACK_API_BASE = 'https://slack.com/api'
 const AUTH_ERROR_CODES = new Set([
@@ -38,18 +38,6 @@ async function slackFetch<T>(
   return data as T
 }
 
-export async function getConversationInfo(
-  accessToken: string,
-  channelId: string
-): Promise<SlackChannel> {
-  const data = await slackFetch<{ channel: { id: string; name: string } }>(
-    accessToken,
-    '/conversations.info',
-    { channel: channelId }
-  )
-  return { id: data.channel.id, name: data.channel.name }
-}
-
 export async function getConversationHistory(
   accessToken: string,
   channelId: string,
@@ -76,6 +64,19 @@ export async function getConversationHistory(
       username: message.username ?? null,
       text: message.text ?? '',
     }))
+}
+
+export async function getMessagePermalink(
+  accessToken: string,
+  channelId: string,
+  messageTs: string
+): Promise<string> {
+  const data = await slackFetch<{ permalink: string }>(
+    accessToken,
+    '/chat.getPermalink',
+    { channel: channelId, message_ts: messageTs }
+  )
+  return data.permalink
 }
 
 export async function getUserDisplayName(

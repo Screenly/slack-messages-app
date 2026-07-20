@@ -1,8 +1,8 @@
 # Slack Messages App
 
-Displays recent messages from one or more Slack channels on your Screenly digital signage screens using the Slack Web API.
+Displays the latest message from one or more Slack channels, full screen, on your Screenly digital signage screens using the Slack Web API. Built for sharing announcements — for example, a private channel dedicated to a set of screens — rather than following high-traffic channels. The channel itself is never shown on screen, only the message, its sender, and a QR code linking back to it on Slack.
 
-![Slack Messages App Preview](screenshots/feed-3840x2160.webp)
+![Slack Messages App Preview](screenshots/message-3840x2160.webp)
 
 ## Prerequisites
 
@@ -33,8 +33,9 @@ settings:
   access_token: 'xoxb-your-bot-token'
   channel_ids: 'C0123ABCDEF,C0456GHIJKL'
   display_errors: 'false'
-  message_limit: '10'
+  message_display_duration: '15'
   refresh_interval: '60'
+  show_qr_code: 'true'
   show_sender_names: 'true'
 ```
 
@@ -81,15 +82,16 @@ screenly edge-app instance create
 
 ## Configuration
 
-| Setting             | Type   | Required | Description                                                                                           |
-| ------------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------- |
-| `access_token`      | secret | No       | For testing only. In production, the token is fetched dynamically via the API.                        |
-| `channel_ids`       | string | Yes      | Comma-separated list of Slack channel IDs to display messages from                                    |
-| `message_limit`     | string | No       | Max number of recent messages shown per channel. Default: `10`                                        |
-| `refresh_interval`  | string | No       | How often (in seconds) to refresh Slack messages. Default: `60`                                       |
-| `display_errors`    | string | No       | Display errors on screen for debugging (`true`/`false`). Default: `false`                             |
-| `show_sender_names` | string | No       | Resolve and display each message's sender name (`true`/`false`). Default: `true`                      |
-| `sentry_dsn`        | secret | No       | Sentry DSN for reporting credential and content-load errors. Global setting — leave empty to disable. |
+| Setting                    | Type   | Required | Description                                                                                                           |
+| -------------------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `access_token`             | secret | No       | For testing only. In production, the token is fetched dynamically via the API.                                        |
+| `channel_ids`              | string | Yes      | Comma-separated list of Slack channel IDs to display messages from                                                    |
+| `message_display_duration` | string | No       | Seconds to show each channel's latest message before rotating to the next, if several channels are set. Default: `15` |
+| `refresh_interval`         | string | No       | How often (in seconds) to refresh Slack messages. Default: `60`                                                       |
+| `display_errors`           | string | No       | Display errors on screen for debugging (`true`/`false`). Default: `false`                                             |
+| `show_qr_code`             | string | No       | Show a QR code linking to the message on Slack (`true`/`false`). Default: `true`                                      |
+| `show_sender_names`        | string | No       | Resolve and display each message's sender name (`true`/`false`). Default: `true`                                      |
+| `sentry_dsn`               | secret | No       | Sentry DSN for reporting credential and content-load errors. Global setting — leave empty to disable.                 |
 
 ## Authentication
 
@@ -104,9 +106,7 @@ Unlike Salesforce or Google, Slack lets you obtain a bot token directly from the
 1. Go to [api.slack.com/apps](https://api.slack.com/apps) and create a new app (from scratch) in your workspace.
 2. Under **OAuth & Permissions**, add these Bot Token Scopes:
    - `channels:history` — read messages in public channels
-   - `channels:read` — resolve channel names
    - `groups:history` — read messages in private channels (if needed)
-   - `groups:read` — resolve private channel names (if needed)
    - `users:read` — resolve sender display names
 3. Click **Install to Workspace** and authorize the app.
 4. Copy the **Bot User OAuth Token** (starts with `xoxb-`).
@@ -126,4 +126,4 @@ Open a channel in Slack, click its name, and scroll to the bottom of the "About"
 
 ## Multiple Channels
 
-Set `channel_ids` to a comma-separated list (e.g. `C0123ABCDEF,C0456GHIJKL`) to display messages from several channels side by side. Each channel renders as its own card; if a channel fails to load (e.g. the bot isn't a member), the remaining channels still render.
+Set `channel_ids` to a comma-separated list (e.g. `C0123ABCDEF,C0456GHIJKL`) to rotate between the latest message of several channels, one full-screen message at a time, every `message_display_duration` seconds. If a channel fails to load (e.g. the bot isn't a member), it's skipped and the remaining channels' messages still rotate through.

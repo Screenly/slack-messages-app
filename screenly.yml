@@ -1,7 +1,7 @@
 ---
 syntax: manifest_v1
 id: WCQE1WHVBX5TFV3V5VZ8Q2DTYX
-description: Display messages from one or more Slack channels on your Screenly screens
+description: Display the latest message from one or more Slack channels, full screen, on your Screenly screens
 icon: https://playground.srly.io/edge-apps/icons/slack-messages.svg
 author: Screenly, Inc.
 categories:
@@ -37,15 +37,15 @@ settings:
         help_text: For debugging purposes to display errors on the screen.
         type: boolean
       schema_version: 1
-  message_limit:
+  message_display_duration:
     type: string
-    default_value: '10'
-    title: Messages Per Channel
+    default_value: '15'
+    title: Message Display Duration (seconds)
     optional: true
     help_text:
       properties:
         advanced: true
-        help_text: Maximum number of recent messages to show per channel. Defaults to 10.
+        help_text: How long to show each channel's latest message before rotating to the next, when multiple channels are configured. Defaults to 15.
         type: number
       schema_version: 1
   refresh_interval:
@@ -69,6 +69,16 @@ settings:
         advanced: true
         help_text: Sentry DSN for reporting credential and content-load errors. Leave empty to disable.
         type: string
+      schema_version: 1
+  show_qr_code:
+    type: string
+    default_value: 'true'
+    title: Show QR Code
+    optional: true
+    help_text:
+      properties:
+        help_text: Show a QR code linking to the message on Slack.
+        type: boolean
       schema_version: 1
   show_sender_names:
     type: string
