@@ -1,0 +1,40 @@
+{
+  "name": "mock-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "run-p build:css build:js",
+    "build:css": "tailwindcss -i src/css/main.css -o dist/css/main.css --minify",
+    "build:js": "bun build src/client/app.ts --outdir dist/js --minify",
+    "dev": "run-p dev:server dev:css dev:js",
+    "dev:css": "tailwindcss -i src/css/main.css -o dist/css/main.css --watch",
+    "dev:js": "bun build src/client/app.ts --outdir dist/js --watch",
+    "dev:server": "bun --watch src/index.ts",
+    "format": "prettier --write .",
+    "lint": "eslint src/",
+    "start": "bun src/index.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "alpinejs": "^3.14.9",
+    "cors": "^2.8.6",
+    "ejs": "^3.1.10",
+    "express": "^5.2.1",
+    "htmx.org": "^2.0.4",
+    "lucide": "^1.16.0",
+    "tailwindcss": "^4.3.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/cli": "^4.3.0",
+    "@types/cors": "^2.8.19",
+    "@types/ejs": "^3.1.5",
+    "@types/express": "^5.0.3",
+    "bun-types": "^1.3.14",
+    "eslint": "^10.0.3",
+    "globals": "^16.0.0",
+    "npm-run-all2": "^8.0.4",
+    "prettier": "^3.8.1",
+    "typescript-eslint": "^8.57.0"
+  }
+}
