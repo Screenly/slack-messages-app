@@ -26,6 +26,8 @@ bun run dev
 
 This generates a `mock-data.yml` file (gitignored), starts the dev server, and starts a local CORS proxy on `http://127.0.0.1:8080`.
 
+For local development without pasting a bot token by hand, use the [mock-server](mock-server/README.md). It simulates the Screenly OAuth service by running a local OAuth v2 flow against Slack and serving the resulting bot token to the Edge App.
+
 After `mock-data.yml` is generated, fill in your values under `settings`:
 
 ```yaml
@@ -38,6 +40,8 @@ settings:
   show_qr_code: 'true'
   show_sender_names: 'true'
 ```
+
+Or, if using the `mock-server`, set `screenly_oauth_tokens_url: 'http://localhost:3000/'` instead of `access_token`.
 
 ## Building
 
@@ -101,7 +105,7 @@ This app reads a Slack bot token at runtime via `getCredentials()` (see `src/cre
 
 ### Getting a bot token for local development
 
-Unlike Salesforce or Google, Slack lets you obtain a bot token directly from the app dashboard without running a local OAuth server:
+Slack lets you obtain a bot token directly from the app dashboard without running a local OAuth server, which is the quickest option for a one-off test:
 
 1. Go to [api.slack.com/apps](https://api.slack.com/apps) and create a new app (from scratch) in your workspace.
 2. Under **OAuth & Permissions**, add these Bot Token Scopes:
@@ -115,6 +119,8 @@ Unlike Salesforce or Google, Slack lets you obtain a bot token directly from the
    ```bash
    screenly edge-app setting set access_token=xoxb-your-bot-token
    ```
+
+Alternatively, use the [mock-server](mock-server/README.md) to go through the actual OAuth v2 authorize-and-exchange flow locally — closer to how production will work once `Screenly/Screenly` has a real OAuth handler for `oauth:slack:access_token`.
 
 ## Error Reporting
 

@@ -1,0 +1,12 @@
+<div class="mb-5 rounded-lg overflow-hidden border border-white/10">
+  <div class="flex items-center justify-between px-3 py-2 bg-white/10 border-b border-white/10">
+    <span class="text-xs text-white/45 uppercase tracking-widest"><%= label %></span>
+    <span :class="copied === '<%= key %>' ? 'opacity-100' : 'opacity-0'" x-cloak
+      class="text-xs font-semibold uppercase tracking-widest text-white bg-[#00a389] px-2 py-0.5 rounded-full transition-opacity">Copied</span>
+  </div>
+  <div class="flex items-center bg-white/5 py-2.5 pr-2 pl-3">
+    <span class="flex-1 min-w-0 font-mono text-xs text-[#d9a8ff] truncate leading-relaxed"><%= value %></span>
+    <button class="flex-none ml-2 bg-transparent border-0 cursor-pointer text-white/40 text-base p-0.5 leading-none hover:text-white" title="Copy"
+      @click="copyToken('<%= key %>')"><i data-lucide="copy" class="w-3.5 h-3.5"></i></button>
+  </div>
+</div>

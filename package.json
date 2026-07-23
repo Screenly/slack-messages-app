@@ -14,7 +14,7 @@
     "build:prod": "edge-apps-scripts build",
     "test": "bun test --pass-with-no-tests src/",
     "test:unit": "bun test --pass-with-no-tests src/",
-    "lint": "edge-apps-scripts lint --fix",
+    "lint": "edge-apps-scripts lint --fix --ignore-pattern mock-server/dist/",
     "format": "prettier --write src/ README.md index.html",
     "format:check": "prettier --check src/ README.md index.html",
     "deploy": "bun run build && screenly edge-app deploy --path=dist/",

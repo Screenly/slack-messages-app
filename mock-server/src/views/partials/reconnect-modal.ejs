@@ -1,0 +1,15 @@
+<div x-show="reconnectOpen" x-cloak
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+  @keydown.escape.window="reconnectOpen = false">
+  <div class="bg-[#1a1a2e] border border-white/15 rounded-2xl p-8 w-full max-w-sm shadow-2xl"
+    @click.outside="reconnectOpen = false">
+    <h2 class="text-lg font-semibold text-white m-0 mb-3">Reconnect to Slack?</h2>
+    <p class="text-sm text-white/60 m-0 mb-7 leading-relaxed">This will start a new OAuth flow and replace your existing token.</p>
+    <div class="flex gap-3 justify-end">
+      <button @click="reconnectOpen = false"
+        class="px-5 py-2.5 rounded-full text-sm font-semibold cursor-pointer border border-white/20 bg-transparent text-white/70 hover:text-white">Cancel</button>
+      <button hx-post="/start" @click="reconnectOpen = false"
+        class="px-5 py-2.5 rounded-full text-sm font-semibold cursor-pointer border-0 bg-[#4a154b] text-white hover:bg-[#611f69]">Reconnect</button>
+    </div>
+  </div>
+</div>
