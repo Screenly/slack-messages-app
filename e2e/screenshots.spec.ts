@@ -9,7 +9,7 @@ import {
 } from '@screenly/edge-apps/test/screenshots'
 import path from 'path'
 
-const MOCK_CHANNEL_IDS = 'C0123ABCDEF,C0456GHIJKL'
+const MOCK_CHANNEL_ID = 'C0123ABCDEF'
 
 const MOCK_CREDENTIALS = {
   token: 'mock-access-token',
@@ -28,9 +28,8 @@ const { screenlyJsContent: messageScreenlyJsContent } =
   createMockScreenlyForScreenshots(
     { coordinates: [37.3861, -122.0839], location: 'Silicon Valley, USA' },
     {
-      channel_ids: MOCK_CHANNEL_IDS,
+      channel_id: MOCK_CHANNEL_ID,
       refresh_interval: '60',
-      message_display_duration: '15',
       display_errors: 'false',
       show_qr_code: 'true',
       show_sender_names: 'true',
@@ -84,11 +83,10 @@ async function setupMessageRoutes(context: BrowserContext): Promise<void> {
   await context.route(/conversations\.info/, (route) => {
     const url = new URL(route.request().url())
     const channel = url.searchParams.get('channel') ?? ''
-    const name = channel === 'C0123ABCDEF' ? 'general' : 'announcements'
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ ok: true, channel: { id: channel, name } }),
+      body: JSON.stringify({ ok: true, channel: { id: channel, name: 'general' } }),
     })
   })
 

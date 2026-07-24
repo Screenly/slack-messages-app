@@ -1,12 +1,9 @@
-export function parseChannelIds(rawChannelIds: string): string[] {
-  const channelIds = rawChannelIds
-    .split(',')
-    .map((channelId) => channelId.trim())
-    .filter((channelId) => channelId.length > 0)
+export function parseChannelId(rawChannelId: string): string {
+  const channelId = rawChannelId.trim()
 
-  if (channelIds.length === 0) {
-    throw new Error('No Slack channel IDs configured.')
+  if (channelId.length === 0) {
+    throw new Error('No Slack channel ID configured.')
   }
 
-  return [...new Set(channelIds)]
+  return channelId
 }

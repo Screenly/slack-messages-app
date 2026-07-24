@@ -6,17 +6,6 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 })
 
-const DEFAULT_ROTATION_SECONDS = 15
-
-let rotationTimer: ReturnType<typeof setInterval> | undefined
-let rotationIndex = 0
-
-function sanitizeRotationSeconds(rotationSeconds: number): number {
-  return Number.isFinite(rotationSeconds) && rotationSeconds > 0
-    ? rotationSeconds
-    : DEFAULT_ROTATION_SECONDS
-}
-
 function formatTimestamp(ts: string): string {
   const millis = Number.parseFloat(ts) * 1000
   if (Number.isNaN(millis)) return ''
@@ -158,52 +147,19 @@ function createEmptyStateCard(): HTMLElement {
   return card
 }
 
-export function renderAnnouncements(
-  announcements: RenderableAnnouncement[],
+export function renderAnnouncement(
+  announcement: RenderableAnnouncement | null,
   showSenderName: boolean,
-  showQrCode: boolean,
-  rotationSeconds: number
+  showQrCode: boolean
 ): void {
   const screen = document.getElementById('message-screen')
   if (!screen) return
 
-  if (rotationTimer) {
-    clearInterval(rotationTimer)
-    rotationTimer = undefined
-  }
-
-  screen.innerHTML = ''
-  if (announcements.length === 0) {
-    rotationIndex = 0
-    screen.appendChild(createEmptyStateCard())
-    return
-  }
-
-  // Keep the rotation position across re-renders (e.g. periodic refreshes)
-  // instead of resetting to the first announcement every time.
-  rotationIndex = rotationIndex % announcements.length
-
-  const showCurrent = () => {
-    screen.replaceChildren(
-      createAnnouncementCard(
-        announcements[rotationIndex],
-        showSenderName,
-        showQrCode
-      )
-    )
-  }
-
-  showCurrent()
-
-  if (announcements.length > 1) {
-    rotationTimer = setInterval(
-      () => {
-        rotationIndex = (rotationIndex + 1) % announcements.length
-        showCurrent()
-      },
-      sanitizeRotationSeconds(rotationSeconds) * 1000
-    )
-  }
+  screen.replaceChildren(
+    announcement
+      ? createAnnouncementCard(announcement, showSenderName, showQrCode)
+      : createEmptyStateCard()
+  )
 }
 
 export function showScreen(screenId: string): void {
@@ -215,10 +171,6 @@ export function showScreen(screenId: string): void {
 }
 
 export function showError(message: string): void {
-  if (rotationTimer) {
-    clearInterval(rotationTimer)
-    rotationTimer = undefined
-  }
   showScreen('error-screen')
   const el = document.getElementById('error-message')
   if (el) el.textContent = message

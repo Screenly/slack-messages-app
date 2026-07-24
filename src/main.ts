@@ -7,11 +7,11 @@ import {
   signalReady,
 } from '@screenly/edge-apps'
 import { setupSentry } from '@screenly/edge-apps/utils'
-import { parseChannelIds } from './content'
+import { parseChannelId } from './content'
 import { createCredentialManager } from './credentials'
 import type { RefreshToken, RuntimeState } from './credentials'
-import { fetchAllLatestMessages, toRenderableAnnouncements } from './messages'
-import { renderAnnouncements, showScreen, showError } from './render'
+import { fetchLatestAnnouncement, toRenderableAnnouncement } from './messages'
+import { renderAnnouncement, showScreen, showError } from './render'
 import { createSenderNameResolver } from './users'
 import type { SenderNameResolver } from './users'
 
@@ -25,7 +25,7 @@ function handleError(message: string, displayErrors: boolean): void {
 }
 
 async function retryAfterAuthError(
-  channelIds: string[],
+  channelId: string,
   showQrCode: boolean,
   getRuntimeState: () => RuntimeState,
   refreshToken: RefreshToken,
@@ -33,7 +33,7 @@ async function retryAfterAuthError(
 ): Promise<
   | ({
       accessToken: string
-    } & Awaited<ReturnType<typeof fetchAllLatestMessages>>)
+    } & Awaited<ReturnType<typeof fetchLatestAnnouncement>>)
   | null
 > {
   try {
@@ -45,9 +45,9 @@ async function retryAfterAuthError(
       return null
     }
 
-    const fetchResult = await fetchAllLatestMessages(
+    const fetchResult = await fetchLatestAnnouncement(
       accessToken,
-      channelIds,
+      channelId,
       showQrCode
     )
     return { accessToken, ...fetchResult }
@@ -63,7 +63,7 @@ async function retryAfterAuthError(
 }
 
 // A genuine failure (auth error surviving retry, or a real Slack/network
-// error) still shows the error card. But if every channel simply came back
+// error) still shows the error card. But if the channel simply came back
 // empty (a legitimately empty channel), that's not an error - show a neutral
 // empty state instead.
 function renderEmptyOrError(
@@ -71,23 +71,21 @@ function renderEmptyOrError(
   hasFetchError: boolean,
   displayErrors: boolean,
   showSenderNames: boolean,
-  showQrCode: boolean,
-  rotationSeconds: number
+  showQrCode: boolean
 ): void {
   if (authError || hasFetchError) {
     handleError('No channel messages could be loaded.', displayErrors)
     return
   }
 
-  renderAnnouncements([], showSenderNames, showQrCode, rotationSeconds)
+  renderAnnouncement(null, showSenderNames, showQrCode)
   showScreen('message-screen')
 }
 
 async function fetchAndRender(
-  channelIds: string[],
+  channelId: string,
   showSenderNames: boolean,
   showQrCode: boolean,
-  rotationSeconds: number,
   getRuntimeState: () => RuntimeState,
   refreshToken: RefreshToken,
   resolveSenderName: SenderNameResolver,
@@ -104,59 +102,53 @@ async function fetchAndRender(
     return
   }
 
-  const initialFetch = await fetchAllLatestMessages(
+  const initialFetch = await fetchLatestAnnouncement(
     accessToken,
-    channelIds,
+    channelId,
     showQrCode
   )
-  let results = initialFetch.results
+  let result = initialFetch.result
   let authError = initialFetch.authError
   let hasFetchError = initialFetch.hasFetchError
 
   if (authError) {
     const retryResult = await retryAfterAuthError(
-      channelIds,
+      channelId,
       showQrCode,
       getRuntimeState,
       refreshToken,
       displayErrors
     )
     if (!retryResult) return
-    ;({ accessToken, results, authError, hasFetchError } = retryResult)
+    ;({ accessToken, result, authError, hasFetchError } = retryResult)
   }
 
-  if (results.length === 0) {
+  if (!result) {
     renderEmptyOrError(
       authError,
       hasFetchError,
       displayErrors,
       showSenderNames,
-      showQrCode,
-      rotationSeconds
+      showQrCode
     )
     return
   }
 
-  const announcements = await toRenderableAnnouncements(
+  const announcement = await toRenderableAnnouncement(
     accessToken,
-    results,
+    result,
     showSenderNames,
     resolveSenderName
   )
 
-  renderAnnouncements(
-    announcements,
-    showSenderNames,
-    showQrCode,
-    rotationSeconds
-  )
+  renderAnnouncement(announcement, showSenderNames, showQrCode)
   showScreen('message-screen')
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
   setupErrorHandling()
 
-  const rawChannelIds = getSettingWithDefault<string>('channel_ids', '')
+  const rawChannelId = getSettingWithDefault<string>('channel_id', '')
   const displayErrors =
     getSettingWithDefault<string>('display_errors', 'false') === 'true'
   const refreshInterval = getSettingWithDefault<number>('refresh_interval', 60)
@@ -164,19 +156,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     getSettingWithDefault<string>('show_sender_names', 'true') === 'true'
   const showQrCode =
     getSettingWithDefault<string>('show_qr_code', 'true') === 'true'
-  const rotationSeconds = getSettingWithDefault<number>(
-    'message_display_duration',
-    15
-  )
 
-  let channelIds: string[]
+  let channelId: string
   try {
-    channelIds = parseChannelIds(rawChannelIds)
+    channelId = parseChannelId(rawChannelId)
   } catch (err) {
     showError(
       err instanceof Error
         ? err.message
-        : 'Please configure Channel IDs in settings.'
+        : 'Please configure Channel ID in settings.'
     )
     signalReady()
     return
@@ -195,10 +183,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const run = () =>
     fetchAndRender(
-      channelIds,
+      channelId,
       showSenderNames,
       showQrCode,
-      rotationSeconds,
       getRuntimeState,
       refreshToken,
       resolveSenderName,

@@ -1,11 +1,10 @@
 ---
 syntax: manifest_v1
-id: DCZ9EE6W7RCEHSVYHH271BDDQX
-description: Display the latest message from one or more Slack channels, full screen, on your Screenly screens
+description: Display the latest message from a Slack channel, full screen, on your Screenly screens
 icon: https://playground.srly.io/edge-apps/icons/slack-messages.svg
 author: Screenly, Inc.
 categories:
-- Communication
+  - Communication
 ready_signal: true
 settings:
   access_token:
@@ -17,14 +16,14 @@ settings:
         help_text: For testing only. In production, the access token should be fetched dynamically via the API.
         type: oauth:slack:access_token
       schema_version: 1
-  channel_ids:
+  channel_id:
     type: string
-    title: Channel IDs
+    title: Channel ID
     optional: false
     help_text:
       properties:
-        help_text: Comma-separated list of Slack channel IDs to display messages from (e.g. C0123ABCDEF, C0456GHIJKL). Select multiple channels to show messages from all of them.
-        type: oauth:slack:channel_ids
+        help_text: Slack channel ID to display messages from (e.g. C0123ABCDEF).
+        type: oauth:slack:channel_id
       schema_version: 1
   display_errors:
     type: string
@@ -36,17 +35,6 @@ settings:
         advanced: true
         help_text: For debugging purposes to display errors on the screen.
         type: boolean
-      schema_version: 1
-  message_display_duration:
-    type: string
-    default_value: '15'
-    title: Message Display Duration (seconds)
-    optional: true
-    help_text:
-      properties:
-        advanced: true
-        help_text: How long to show each channel's latest message before rotating to the next, when multiple channels are configured. Defaults to 15.
-        type: number
       schema_version: 1
   refresh_interval:
     type: string
@@ -63,13 +51,13 @@ settings:
     type: secret
     title: Sentry DSN
     optional: true
-    is_global: true
     help_text:
       properties:
         advanced: true
         help_text: Sentry DSN for reporting credential and content-load errors. Leave empty to disable.
         type: string
       schema_version: 1
+    is_global: true
   show_qr_code:
     type: string
     default_value: 'true'

@@ -79,66 +79,51 @@ async function fetchLatestMessage(
   return { message, permalink, channelName }
 }
 
-export async function fetchAllLatestMessages(
+export async function fetchLatestAnnouncement(
   accessToken: string,
-  channelIds: string[],
+  channelId: string,
   fetchPermalink: boolean
 ): Promise<{
-  results: FetchedMessage[]
+  result: FetchedMessage | null
   authError: boolean
-  // True when at least one channel raised a genuine fetch error (anything
-  // other than an auth error, which is handled separately via retry). Lets
-  // callers tell "every channel is legitimately empty" apart from "every
-  // channel failed to load".
+  // True when the channel raised a genuine fetch error (anything other than
+  // an auth error, which is handled separately via retry). Lets callers tell
+  // "the channel is legitimately empty" apart from "the channel failed to
+  // load".
   hasFetchError: boolean
 }> {
-  const settled = await Promise.allSettled(
-    channelIds.map((channelId) =>
-      fetchLatestMessage(accessToken, channelId, fetchPermalink)
+  try {
+    const result = await fetchLatestMessage(
+      accessToken,
+      channelId,
+      fetchPermalink
     )
-  )
-
-  const results: FetchedMessage[] = []
-  let authError = false
-  let hasFetchError = false
-
-  settled.forEach((result, index) => {
-    if (result.status === 'fulfilled') {
-      if (result.value) results.push(result.value)
-      return
+    return { result, authError: false, hasFetchError: false }
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return { result: null, authError: true, hasFetchError: false }
     }
 
-    if (result.reason instanceof AuthError) {
-      authError = true
-      return
-    }
-
-    hasFetchError = true
-    reportError(result.reason, {
-      source: 'slack-content',
-      channelId: channelIds[index],
-    })
-  })
-
-  return { results, authError, hasFetchError }
+    reportError(err, { source: 'slack-content', channelId })
+    return { result: null, authError: false, hasFetchError: true }
+  }
 }
 
-export async function toRenderableAnnouncements(
+export async function toRenderableAnnouncement(
   accessToken: string,
-  results: FetchedMessage[],
+  result: FetchedMessage,
   showSenderNames: boolean,
   resolveSenderName: SenderNameResolver
-): Promise<RenderableAnnouncement[]> {
-  return Promise.all(
-    results.map(async ({ message, permalink, channelName }) => ({
-      ts: message.ts,
-      text: message.text,
-      senderName:
-        showSenderNames && message.user
-          ? await resolveSenderName(accessToken, message.user)
-          : (message.username ?? message.user ?? 'Unknown'),
-      channelName,
-      permalink,
-    }))
-  )
+): Promise<RenderableAnnouncement> {
+  const { message, permalink, channelName } = result
+  return {
+    ts: message.ts,
+    text: message.text,
+    senderName:
+      showSenderNames && message.user
+        ? await resolveSenderName(accessToken, message.user)
+        : (message.username ?? message.user ?? 'Unknown'),
+    channelName,
+    permalink,
+  }
 }
