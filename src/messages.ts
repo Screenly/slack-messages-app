@@ -117,6 +117,10 @@ export async function fetchLatestAnnouncement(
   // "the channel is legitimately empty" apart from "the channel failed to
   // load".
   hasFetchError: boolean
+  // The error behind `hasFetchError`, so callers can decide whether it's
+  // eligible for persistent-cache failover (see `errors.ts`). Always null
+  // unless `hasFetchError` is true.
+  fetchError: Error | null
 }> {
   try {
     const result = await fetchLatestMessage(
@@ -124,14 +128,25 @@ export async function fetchLatestAnnouncement(
       channelId,
       fetchPermalink
     )
-    return { result, authError: false, hasFetchError: false }
+    return { result, authError: false, hasFetchError: false, fetchError: null }
   } catch (err) {
     if (err instanceof AuthError) {
-      return { result: null, authError: true, hasFetchError: false }
+      return {
+        result: null,
+        authError: true,
+        hasFetchError: false,
+        fetchError: null,
+      }
     }
 
-    reportError(err, { source: 'slack-content', channelId })
-    return { result: null, authError: false, hasFetchError: true }
+    const error = err instanceof Error ? err : new Error(String(err))
+    reportError(error, { source: 'slack-content', channelId })
+    return {
+      result: null,
+      authError: false,
+      hasFetchError: true,
+      fetchError: error,
+    }
   }
 }
 

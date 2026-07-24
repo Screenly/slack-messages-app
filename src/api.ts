@@ -1,4 +1,5 @@
 import { getCorsProxyUrl } from '@screenly/edge-apps'
+import { BackendServerError } from './errors'
 import type { SlackMessage } from './types'
 
 const SLACK_API_BASE = 'https://slack.com/api'
@@ -15,7 +16,28 @@ function apiUrl(path: string): string {
   return `${getCorsProxyUrl()}/${SLACK_API_BASE}${path}`
 }
 
+// Wraps `fetch` so a network-level failure (offline device, DNS failure,
+// timeout, ...) surfaces as a `BackendServerError` alongside 5xx/429
+// responses (see `parseSlackResponse`), rather than as a raw, differently
+// shaped exception - this is what lets callers treat "Slack is unreachable"
+// uniformly regardless of which layer it failed at.
+async function performRequest(
+  url: string,
+  init?: RequestInit
+): Promise<Response> {
+  try {
+    return await fetch(url, init)
+  } catch (err) {
+    throw new BackendServerError(
+      `Slack could not be reached (${err instanceof Error ? err.message : String(err)}).`
+    )
+  }
+}
+
 async function parseSlackResponse<T>(res: Response, path: string): Promise<T> {
+  if (res.status >= 500 || res.status === 429) {
+    throw new BackendServerError(`Slack's API had a problem (${res.status}).`)
+  }
   if (!res.ok) throw new Error(`Slack API error ${res.status}: ${path}`)
 
   const data = (await res.json()) as { ok: boolean; error?: string }
@@ -35,7 +57,7 @@ async function slackFetch<T>(
   params: Record<string, string>
 ): Promise<T> {
   const query = new URLSearchParams(params).toString()
-  const res = await fetch(`${apiUrl(path)}?${query}`, {
+  const res = await performRequest(`${apiUrl(path)}?${query}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
 
@@ -101,7 +123,7 @@ export async function getMessagePermalink(
 // "https://myteam.slack.com/"), which we use to build a browsable channel
 // link since there's no dedicated "get channel URL" endpoint.
 export async function getWorkspaceUrl(accessToken: string): Promise<string> {
-  const res = await fetch(apiUrl('/auth.test'), {
+  const res = await performRequest(apiUrl('/auth.test'), {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
   })
