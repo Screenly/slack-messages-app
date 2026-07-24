@@ -7,7 +7,6 @@
   --color-accent-light: #611f69;
   --color-card-text: #1a1a1a;
   --color-card-text-muted: #6b6b70;
-  --color-error: #e01e5a;
   --card-radius: 1.5rem;
 }
 
@@ -201,76 +200,6 @@ main {
   color: var(--color-card-text-muted);
 }
 
-/* Error screen */
-
-#error-screen {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.error-card {
-  background: #fff;
-  border-radius: var(--card-radius);
-  box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.16);
-  display: flex;
-  flex-direction: row;
-  overflow: hidden;
-  max-width: 72rem;
-  width: 100%;
-}
-
-.error-card-left {
-  background: #fff;
-  padding: 3rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 1.5rem;
-  flex: 0 0 26rem;
-}
-
-.error-card-left h2 {
-  font-size: 3rem;
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: -0.03em;
-  color: var(--color-error);
-}
-
-.error-card-left p {
-  font-size: 1.5rem;
-  color: var(--color-card-text-muted);
-  line-height: 1.5;
-}
-
-.error-card-right {
-  flex: 1;
-  background: #f7f7f8;
-  border-left: 0.0625rem solid rgba(0, 0, 0, 0.08);
-  padding: 3rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 1rem;
-}
-
-.error-detail-label {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--color-card-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.error-detail-message {
-  font-size: 1.75rem;
-  color: var(--color-card-text);
-  line-height: 1.5;
-  word-break: break-word;
-}
-
 /* Empty state */
 
 /* Reuses .announcement-main, just vertically centering the single line of
@@ -330,19 +259,5 @@ main {
 
   .empty-state-subtitle {
     font-size: 1.55rem;
-  }
-
-  .error-card {
-    flex-direction: column;
-    max-width: 100%;
-  }
-
-  .error-card-left {
-    flex: none;
-  }
-
-  .error-card-right {
-    border-left: none;
-    border-top: 0.0625rem solid rgba(0, 0, 0, 0.08);
   }
 }

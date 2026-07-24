@@ -9,22 +9,12 @@ import { setupSentry } from '@screenly/edge-apps/utils'
 import { createAnnouncementLoader } from './announcement-loader'
 import { createAnnouncementPresenter } from './announcement-presenter'
 import { createCredentialManager } from './credentials'
-import { showError } from './render'
 import { getAppSettings } from './settings'
 import { createSenderNameResolver } from './users'
 
 setupSentry('slack-messages', {
   'slack-messages': { screenName: screenly.metadata.screen_name },
 })
-
-function reportSettingsError(error: unknown): void {
-  showError(
-    error instanceof Error
-      ? error.message
-      : 'Please configure Channel ID in settings.'
-  )
-  signalReady()
-}
 
 function scheduleUpdates(update: () => Promise<void>, interval: number): void {
   setInterval(async () => {
@@ -39,15 +29,11 @@ function scheduleUpdates(update: () => Promise<void>, interval: number): void {
 export async function startApplication(): Promise<void> {
   setupErrorHandling()
 
-  let settings
-  try {
-    settings = getAppSettings()
-  } catch (error) {
-    reportSettingsError(error)
-    return
-  }
+  const settings = getAppSettings()
 
-  const { refreshToken, getRuntimeState } = createCredentialManager()
+  const { refreshToken, getRuntimeState } = createCredentialManager(
+    settings.displayErrors
+  )
   const loadAnnouncement = createAnnouncementLoader(
     settings,
     getRuntimeState,

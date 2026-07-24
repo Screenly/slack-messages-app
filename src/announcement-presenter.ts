@@ -1,17 +1,12 @@
 import type { AnnouncementLoadResult } from './announcement-loader'
 import { getChannelLink, toRenderableAnnouncement } from './messages'
-import { renderAnnouncement, showError, showScreen } from './render'
+import { renderAnnouncement, showMessageScreen } from './render'
 import type { AppSettings } from './settings'
 import type { SenderNameResolver } from './users'
 
 export type AnnouncementPresenter = (
   load: AnnouncementLoadResult
 ) => Promise<void>
-
-function displayError(message: string, displayErrors: boolean): void {
-  if (displayErrors) throw new Error(message)
-  showError(message)
-}
 
 function displayMessage(
   announcement: Parameters<typeof renderAnnouncement>[0],
@@ -24,7 +19,7 @@ function displayMessage(
     settings.showQrCode,
     channelLink
   )
-  showScreen('message-screen')
+  showMessageScreen()
 }
 
 async function getEmptyStateLink(
@@ -40,17 +35,14 @@ export function createAnnouncementPresenter(
   resolveSenderName: SenderNameResolver
 ): AnnouncementPresenter {
   return async (load) => {
+    if ('skipped' in load) return
+
     if ('error' in load) {
-      displayError(load.error.message, settings.displayErrors)
-      return
+      throw load.error
     }
 
     if (load.authError || load.hasFetchError) {
-      displayError(
-        'No channel messages could be loaded.',
-        settings.displayErrors
-      )
-      return
+      throw new Error('No channel messages could be loaded.')
     }
 
     if (!load.result) {

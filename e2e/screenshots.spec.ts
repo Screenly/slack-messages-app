@@ -165,29 +165,6 @@ for (const [width, height] of [
   [3840, 2160],
   [2160, 3840],
 ]) {
-  test(`screenshot error ${width}x${height}`, async ({ browser }) => {
-    await takeScreenshot(
-      browser,
-      width,
-      height,
-      `error-${width}x${height}.png`,
-      messageScreenlyJsContent,
-      (context) =>
-        context.route(/access_token\//, (route) =>
-          route.fulfill({
-            status: 401,
-            contentType: 'application/json',
-            body: JSON.stringify({ error: 'Unauthorized' }),
-          })
-        )
-    )
-  })
-}
-
-for (const [width, height] of [
-  [3840, 2160],
-  [2160, 3840],
-]) {
   test(`screenshot empty channel ${width}x${height}`, async ({ browser }) => {
     await takeScreenshot(
       browser,

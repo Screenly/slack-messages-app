@@ -215,16 +215,7 @@ export function renderAnnouncement(
   )
 }
 
-export function showScreen(screenId: string): void {
-  const screens = ['message-screen', 'error-screen']
-  screens.forEach((id) => {
-    const el = document.getElementById(id)
-    if (el) el.style.display = id === screenId ? 'flex' : 'none'
-  })
-}
-
-export function showError(message: string): void {
-  showScreen('error-screen')
-  const el = document.getElementById('error-message')
-  if (el) el.textContent = message
+export function showMessageScreen(): void {
+  const el = document.getElementById('message-screen')
+  if (el) el.style.display = 'flex'
 }
