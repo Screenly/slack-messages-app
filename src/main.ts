@@ -10,7 +10,11 @@ import { setupSentry } from '@screenly/edge-apps/utils'
 import { parseChannelId } from './content'
 import { createCredentialManager } from './credentials'
 import type { RefreshToken, RuntimeState } from './credentials'
-import { fetchLatestAnnouncement, toRenderableAnnouncement } from './messages'
+import {
+  fetchLatestAnnouncement,
+  getChannelLink,
+  toRenderableAnnouncement,
+} from './messages'
 import { renderAnnouncement, showScreen, showError } from './render'
 import { createSenderNameResolver } from './users'
 import type { SenderNameResolver } from './users'
@@ -66,19 +70,29 @@ async function retryAfterAuthError(
 // error) still shows the error card. But if the channel simply came back
 // empty (a legitimately empty channel), that's not an error - show a neutral
 // empty state instead.
-function renderEmptyOrError(
+async function renderEmptyOrError(
   authError: boolean,
   hasFetchError: boolean,
   displayErrors: boolean,
   showSenderNames: boolean,
-  showQrCode: boolean
-): void {
+  showQrCode: boolean,
+  accessToken: string,
+  channelId: string
+): Promise<void> {
   if (authError || hasFetchError) {
     handleError('No channel messages could be loaded.', displayErrors)
     return
   }
 
-  renderAnnouncement(null, showSenderNames, showQrCode)
+  // The main content already loaded successfully at this point (no auth
+  // error, no fetch error) - the channel link is just for the QR code, so
+  // treat any failure here (including a stray AuthError) as best-effort and
+  // fall back to no QR code rather than derailing an otherwise-fine render.
+  const channelLink = showQrCode
+    ? await getChannelLink(accessToken, channelId).catch(() => null)
+    : null
+
+  renderAnnouncement(null, showSenderNames, showQrCode, channelLink)
   showScreen('message-screen')
 }
 
@@ -124,12 +138,14 @@ async function fetchAndRender(
   }
 
   if (!result) {
-    renderEmptyOrError(
+    await renderEmptyOrError(
       authError,
       hasFetchError,
       displayErrors,
       showSenderNames,
-      showQrCode
+      showQrCode,
+      accessToken,
+      channelId
     )
     return
   }

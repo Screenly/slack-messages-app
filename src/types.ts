@@ -5,9 +5,14 @@ export interface SlackMessage {
   text: string
 }
 
+export interface TextSegment {
+  kind: 'text' | 'user-mention' | 'channel-mention'
+  value: string
+}
+
 export interface RenderableAnnouncement {
   ts: string
-  text: string
+  textSegments: TextSegment[]
   senderName: string
   channelName: string
   permalink: string | null

@@ -138,6 +138,14 @@ async function setupEmptyChannelRoutes(context: BrowserContext): Promise<void> {
       body: JSON.stringify({ ok: true, messages: [] }),
     })
   )
+
+  await context.route(/auth\.test/, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, url: 'https://screenly.slack.com/' }),
+    })
+  )
 }
 
 for (const { width, height } of RESOLUTIONS) {

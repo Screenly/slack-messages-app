@@ -79,7 +79,7 @@ main {
   box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.16);
   display: flex;
   flex-direction: row;
-  max-width: 62rem;
+  max-width: 74rem;
   width: 100%;
   max-height: 100%;
   overflow: hidden;
@@ -140,6 +140,12 @@ main {
   white-space: pre-wrap;
 }
 
+.mention-user,
+.mention-channel {
+  color: #7c3085;
+  font-weight: 700;
+}
+
 .announcement-divider {
   flex-shrink: 0;
   width: 0.0625rem;
@@ -149,7 +155,7 @@ main {
 
 .announcement-qr-panel {
   flex-shrink: 0;
-  background: #f7f7f8;
+  background: #e8e8ea;
   padding: 3rem;
   display: flex;
   flex-direction: column;
@@ -263,11 +269,16 @@ main {
 
 /* Empty state */
 
-.empty-state-card {
-  padding: 3rem 3.5rem;
-  align-items: center;
+/* Reuses .announcement-main, just vertically centering the single line of
+   text since there's no header row taking up space above it. */
+.empty-state-main {
   justify-content: center;
-  text-align: center;
+  gap: 0.75rem;
+}
+
+.empty-state-subtitle {
+  font-size: 1.35rem;
+  color: var(--color-card-text-muted);
 }
 
 @media (orientation: portrait) {
@@ -296,12 +307,24 @@ main {
   }
 
   .qr-code {
-    width: 14rem;
-    height: 14rem;
+    width: 16rem;
+    height: 16rem;
   }
 
   .qr-caption {
     text-align: left;
+  }
+
+  .qr-caption-title {
+    font-size: 2rem;
+  }
+
+  .qr-caption-subtitle {
+    font-size: 1.55rem;
+  }
+
+  .empty-state-subtitle {
+    font-size: 1.55rem;
   }
 
   .error-card {

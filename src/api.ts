@@ -15,16 +15,7 @@ function apiUrl(path: string): string {
   return `${getCorsProxyUrl()}/${SLACK_API_BASE}${path}`
 }
 
-async function slackFetch<T>(
-  accessToken: string,
-  path: string,
-  params: Record<string, string>
-): Promise<T> {
-  const query = new URLSearchParams(params).toString()
-  const res = await fetch(`${apiUrl(path)}?${query}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-
+async function parseSlackResponse<T>(res: Response, path: string): Promise<T> {
   if (!res.ok) throw new Error(`Slack API error ${res.status}: ${path}`)
 
   const data = (await res.json()) as { ok: boolean; error?: string }
@@ -36,6 +27,19 @@ async function slackFetch<T>(
   }
 
   return data as T
+}
+
+async function slackFetch<T>(
+  accessToken: string,
+  path: string,
+  params: Record<string, string>
+): Promise<T> {
+  const query = new URLSearchParams(params).toString()
+  const res = await fetch(`${apiUrl(path)}?${query}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+
+  return parseSlackResponse<T>(res, path)
 }
 
 export async function getConversationInfo(
@@ -89,6 +93,21 @@ export async function getMessagePermalink(
     { channel: channelId, message_ts: messageTs }
   )
   return data.permalink
+}
+
+// auth.test is documented as POST-only (unlike the rest of the calls in this
+// file, which are all GET), so it can't go through slackFetch(). It requires
+// no special OAuth scope and returns the workspace's base URL (e.g.
+// "https://myteam.slack.com/"), which we use to build a browsable channel
+// link since there's no dedicated "get channel URL" endpoint.
+export async function getWorkspaceUrl(accessToken: string): Promise<string> {
+  const res = await fetch(apiUrl('/auth.test'), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+
+  const data = await parseSlackResponse<{ url: string }>(res, '/auth.test')
+  return data.url
 }
 
 export async function getUserDisplayName(

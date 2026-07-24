@@ -1,5 +1,11 @@
 import qrcode from 'qrcode-generator'
-import type { RenderableAnnouncement } from '../types'
+import type { RenderableAnnouncement, TextSegment } from '../types'
+
+const MENTION_CLASS_NAMES: Record<TextSegment['kind'], string | null> = {
+  text: null,
+  'user-mention': 'mention-user',
+  'channel-mention': 'mention-channel',
+}
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
   hour: 'numeric',
@@ -57,6 +63,26 @@ function createAnnouncementHeader(
   return header
 }
 
+function createAnnouncementText(segments: TextSegment[]): HTMLElement {
+  const text = document.createElement('div')
+  text.className = 'announcement-text'
+
+  for (const segment of segments) {
+    const className = MENTION_CLASS_NAMES[segment.kind]
+    if (!className) {
+      text.appendChild(document.createTextNode(segment.value))
+      continue
+    }
+
+    const span = document.createElement('span')
+    span.className = className
+    span.textContent = segment.value
+    text.appendChild(span)
+  }
+
+  return text
+}
+
 function createAnnouncementMain(
   announcement: RenderableAnnouncement,
   showSenderName: boolean
@@ -65,21 +91,17 @@ function createAnnouncementMain(
   main.className = 'announcement-main'
 
   main.appendChild(createAnnouncementHeader(announcement, showSenderName))
-
-  const text = document.createElement('div')
-  text.className = 'announcement-text'
-  text.textContent = announcement.text
-  main.appendChild(text)
+  main.appendChild(createAnnouncementText(announcement.textSegments))
 
   return main
 }
 
-function createQrPanel(permalink: string): HTMLElement {
+function createQrPanel(link: string, captionSubtitle: string): HTMLElement {
   const panel = document.createElement('div')
   panel.className = 'announcement-qr-panel'
 
   const qr = qrcode(0, 'M')
-  qr.addData(permalink)
+  qr.addData(link)
   qr.make()
 
   const svgDoc = new DOMParser().parseFromString(
@@ -102,7 +124,7 @@ function createQrPanel(permalink: string): HTMLElement {
 
   const subtitle = document.createElement('div')
   subtitle.className = 'qr-caption-subtitle'
-  subtitle.textContent = 'View this message on your phone'
+  subtitle.textContent = captionSubtitle
   caption.appendChild(subtitle)
 
   panel.appendChild(caption)
@@ -110,47 +132,78 @@ function createQrPanel(permalink: string): HTMLElement {
   return panel
 }
 
-function createAnnouncementCard(
-  announcement: RenderableAnnouncement,
-  showSenderName: boolean,
-  showQrCode: boolean
+function createCardWithOptionalQrPanel(
+  main: HTMLElement,
+  showQrCode: boolean,
+  link: string | null,
+  captionSubtitle: string
 ): HTMLElement {
   const card = document.createElement('div')
   card.className = 'announcement-card'
+  card.appendChild(main)
 
-  card.appendChild(createAnnouncementMain(announcement, showSenderName))
-
-  if (showQrCode && announcement.permalink) {
+  if (showQrCode && link) {
     const divider = document.createElement('div')
     divider.className = 'announcement-divider'
     card.appendChild(divider)
-
-    card.appendChild(createQrPanel(announcement.permalink))
+    card.appendChild(createQrPanel(link, captionSubtitle))
   }
 
   return card
 }
 
-// Reuses the same card look as an announcement (white, rounded corners,
-// centered) so a legitimately empty channel reads as a calm, on-brand state
-// rather than bare floating text - just without the header/QR, since
-// there's no message to show or link to.
-function createEmptyStateCard(): HTMLElement {
-  const card = document.createElement('div')
-  card.className = 'announcement-card empty-state-card'
+function createAnnouncementCard(
+  announcement: RenderableAnnouncement,
+  showSenderName: boolean,
+  showQrCode: boolean
+): HTMLElement {
+  return createCardWithOptionalQrPanel(
+    createAnnouncementMain(announcement, showSenderName),
+    showQrCode,
+    announcement.permalink,
+    'View this message on your phone'
+  )
+}
+
+// Reuses the same two-panel announcement-card layout (main + divider + QR
+// panel) so a legitimately empty channel reads as a calm, on-brand state
+// rather than a bespoke smaller card - just without the header, since
+// there's no message to show, and linking the QR to the channel itself
+// (not a specific message) since there's nothing to permalink to.
+function createEmptyStateMain(): HTMLElement {
+  const main = document.createElement('div')
+  main.className = 'announcement-main empty-state-main'
 
   const text = document.createElement('div')
   text.className = 'announcement-text'
-  text.textContent = 'No messages yet'
-  card.appendChild(text)
+  text.textContent = 'No new messages yet'
+  main.appendChild(text)
 
-  return card
+  const subtitle = document.createElement('div')
+  subtitle.className = 'empty-state-subtitle'
+  subtitle.textContent = 'New messages will appear here on the next refresh'
+  main.appendChild(subtitle)
+
+  return main
+}
+
+function createEmptyStateCard(
+  showQrCode: boolean,
+  channelLink: string | null
+): HTMLElement {
+  return createCardWithOptionalQrPanel(
+    createEmptyStateMain(),
+    showQrCode,
+    channelLink,
+    'View this channel on your phone'
+  )
 }
 
 export function renderAnnouncement(
   announcement: RenderableAnnouncement | null,
   showSenderName: boolean,
-  showQrCode: boolean
+  showQrCode: boolean,
+  channelLink: string | null = null
 ): void {
   const screen = document.getElementById('message-screen')
   if (!screen) return
@@ -158,7 +211,7 @@ export function renderAnnouncement(
   screen.replaceChildren(
     announcement
       ? createAnnouncementCard(announcement, showSenderName, showQrCode)
-      : createEmptyStateCard()
+      : createEmptyStateCard(showQrCode, channelLink)
   )
 }
 
