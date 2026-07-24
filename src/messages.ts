@@ -7,8 +7,9 @@ import {
   getWorkspaceUrl,
 } from './api'
 import { createBoundedCache } from './cache'
+import { parseMrkdwn } from './mrkdwn'
 import type { SenderNameResolver } from './users'
-import type { SlackMessage, RenderableAnnouncement, TextSegment } from './types'
+import type { SlackMessage, RenderableAnnouncement } from './types'
 
 // getConversationHistory() (src/api.ts) filters out subtype 'channel_join'
 // events, so fetch a small buffer beyond the single message we render in
@@ -153,77 +154,6 @@ export async function getChannelLink(
   )
 }
 
-// Slack's mrkdwn wraps entity references and links in angle brackets, e.g.
-// `<@U0123>` (user mention), `<#C0123|general>` (channel mention, name
-// usually inlined), `<!channel>`/`<!here>`/`<!everyone>` (broadcasts), and
-// `<https://example.com|label>` (links). Left as-is, these show up as raw
-// tokens on screen instead of readable text.
-const MRKDWN_TOKEN_PATTERN = /<([^>]+)>/g
-
-// A token's body is everything after the sigil (@/#/!), optionally followed
-// by a `|`-separated fallback label - this returns just the id/keyword part.
-function tokenIdPart(token: string): string {
-  return token.slice(1).split('|')[0]
-}
-
-async function resolveMrkdwnToken(
-  token: string,
-  accessToken: string,
-  resolveSenderName: SenderNameResolver
-): Promise<TextSegment> {
-  if (token.startsWith('@')) {
-    const name = await resolveSenderName(accessToken, tokenIdPart(token))
-    return { kind: 'user-mention', value: `@${name}` }
-  }
-
-  if (token.startsWith('#')) {
-    const [channelId, inlineName] = token.slice(1).split('|')
-    const name =
-      inlineName ??
-      (await getCachedChannelName(accessToken, channelId).catch(
-        () => channelId
-      ))
-    return { kind: 'channel-mention', value: `#${name}` }
-  }
-
-  if (token.startsWith('!')) {
-    return { kind: 'text', value: `@${tokenIdPart(token)}` }
-  }
-
-  // Link: <https://example.com|label> or bare <https://example.com>.
-  const [url, label] = token.split('|')
-  return { kind: 'text', value: label ?? url }
-}
-
-async function parseMrkdwn(
-  text: string,
-  accessToken: string,
-  resolveSenderName: SenderNameResolver
-): Promise<TextSegment[]> {
-  const segments: TextSegment[] = []
-  let lastIndex = 0
-
-  for (const match of text.matchAll(MRKDWN_TOKEN_PATTERN)) {
-    const [fullMatch, token] = match
-    const index = match.index ?? 0
-
-    if (index > lastIndex) {
-      segments.push({ kind: 'text', value: text.slice(lastIndex, index) })
-    }
-
-    segments.push(
-      await resolveMrkdwnToken(token, accessToken, resolveSenderName)
-    )
-    lastIndex = index + fullMatch.length
-  }
-
-  if (lastIndex < text.length) {
-    segments.push({ kind: 'text', value: text.slice(lastIndex) })
-  }
-
-  return segments
-}
-
 export async function toRenderableAnnouncement(
   accessToken: string,
   result: FetchedMessage,
@@ -235,7 +165,12 @@ export async function toRenderableAnnouncement(
     showSenderNames && message.user
       ? resolveSenderName(accessToken, message.user)
       : Promise.resolve(message.username ?? message.user ?? 'Unknown'),
-    parseMrkdwn(message.text, accessToken, resolveSenderName),
+    parseMrkdwn(
+      message.text,
+      (userId) => resolveSenderName(accessToken, userId),
+      (channelId) =>
+        getCachedChannelName(accessToken, channelId).catch(() => channelId)
+    ),
   ])
 
   return {

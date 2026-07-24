@@ -132,7 +132,7 @@ function createQrPanel(link: string, captionSubtitle: string): HTMLElement {
   return panel
 }
 
-function createCardWithOptionalQrPanel(
+function createAnnouncementLayout(
   main: HTMLElement,
   showQrCode: boolean,
   link: string | null,
@@ -157,7 +157,7 @@ function createAnnouncementCard(
   showSenderName: boolean,
   showQrCode: boolean
 ): HTMLElement {
-  return createCardWithOptionalQrPanel(
+  return createAnnouncementLayout(
     createAnnouncementMain(announcement, showSenderName),
     showQrCode,
     announcement.permalink,
@@ -191,7 +191,7 @@ function createEmptyStateCard(
   showQrCode: boolean,
   channelLink: string | null
 ): HTMLElement {
-  return createCardWithOptionalQrPanel(
+  return createAnnouncementLayout(
     createEmptyStateMain(),
     showQrCode,
     channelLink,
