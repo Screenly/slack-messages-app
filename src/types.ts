@@ -9,5 +9,6 @@ export interface RenderableAnnouncement {
   ts: string
   text: string
   senderName: string
+  channelName: string
   permalink: string | null
 }

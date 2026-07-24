@@ -38,6 +38,18 @@ async function slackFetch<T>(
   return data as T
 }
 
+export async function getConversationInfo(
+  accessToken: string,
+  channelId: string
+): Promise<{ id: string; name: string }> {
+  const data = await slackFetch<{ channel: { id: string; name: string } }>(
+    accessToken,
+    '/conversations.info',
+    { channel: channelId }
+  )
+  return { id: data.channel.id, name: data.channel.name }
+}
+
 export async function getConversationHistory(
   accessToken: string,
   channelId: string,

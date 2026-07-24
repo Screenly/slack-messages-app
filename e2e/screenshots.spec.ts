@@ -81,6 +81,17 @@ function mockCredentials(context: BrowserContext): Promise<void> {
 async function setupMessageRoutes(context: BrowserContext): Promise<void> {
   await mockCredentials(context)
 
+  await context.route(/conversations\.info/, (route) => {
+    const url = new URL(route.request().url())
+    const channel = url.searchParams.get('channel') ?? ''
+    const name = channel === 'C0123ABCDEF' ? 'general' : 'announcements'
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, channel: { id: channel, name } }),
+    })
+  })
+
   await context.route(/conversations\.history/, (route) => {
     const url = new URL(route.request().url())
     const channel = url.searchParams.get('channel') ?? ''
@@ -119,6 +130,18 @@ async function setupMessageRoutes(context: BrowserContext): Promise<void> {
   })
 }
 
+async function setupEmptyChannelRoutes(context: BrowserContext): Promise<void> {
+  await mockCredentials(context)
+
+  await context.route(/conversations\.history/, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, messages: [] }),
+    })
+  )
+}
+
 for (const { width, height } of RESOLUTIONS) {
   test(`screenshot message ${width}x${height}`, async ({ browser }) => {
     await takeScreenshot(
@@ -151,6 +174,22 @@ for (const [width, height] of [
             body: JSON.stringify({ error: 'Unauthorized' }),
           })
         )
+    )
+  })
+}
+
+for (const [width, height] of [
+  [3840, 2160],
+  [2160, 3840],
+]) {
+  test(`screenshot empty channel ${width}x${height}`, async ({ browser }) => {
+    await takeScreenshot(
+      browser,
+      width,
+      height,
+      `empty-${width}x${height}.png`,
+      messageScreenlyJsContent,
+      (context) => setupEmptyChannelRoutes(context)
     )
   })
 }

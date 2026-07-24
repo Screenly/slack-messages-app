@@ -23,9 +23,71 @@ function formatTimestamp(ts: string): string {
   return timeFormatter.format(new Date(millis))
 }
 
-function createQrCodePanel(permalink: string): HTMLElement {
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function createAnnouncementHeader(
+  announcement: RenderableAnnouncement,
+  showSenderName: boolean
+): HTMLElement {
+  const header = document.createElement('div')
+  header.className = 'announcement-header'
+
+  if (showSenderName) {
+    const avatar = document.createElement('div')
+    avatar.className = 'announcement-avatar'
+    avatar.textContent = getInitials(announcement.senderName)
+    header.appendChild(avatar)
+  }
+
+  const meta = document.createElement('div')
+  meta.className = 'announcement-meta'
+
+  if (showSenderName) {
+    const sender = document.createElement('div')
+    sender.className = 'announcement-sender'
+    sender.textContent = announcement.senderName
+    meta.appendChild(sender)
+  }
+
+  const subline = document.createElement('div')
+  subline.className = 'announcement-subline'
+  subline.textContent = [
+    announcement.channelName && `#${announcement.channelName}`,
+    formatTimestamp(announcement.ts),
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  meta.appendChild(subline)
+
+  header.appendChild(meta)
+  return header
+}
+
+function createAnnouncementMain(
+  announcement: RenderableAnnouncement,
+  showSenderName: boolean
+): HTMLElement {
+  const main = document.createElement('div')
+  main.className = 'announcement-main'
+
+  main.appendChild(createAnnouncementHeader(announcement, showSenderName))
+
+  const text = document.createElement('div')
+  text.className = 'announcement-text'
+  text.textContent = announcement.text
+  main.appendChild(text)
+
+  return main
+}
+
+function createQrPanel(permalink: string): HTMLElement {
   const panel = document.createElement('div')
-  panel.className = 'announcement-qr'
+  panel.className = 'announcement-qr-panel'
 
   const qr = qrcode(0, 'M')
   qr.addData(permalink)
@@ -43,7 +105,17 @@ function createQrCodePanel(permalink: string): HTMLElement {
 
   const caption = document.createElement('div')
   caption.className = 'qr-caption'
-  caption.textContent = 'Scan to view on Slack'
+
+  const title = document.createElement('div')
+  title.className = 'qr-caption-title'
+  title.textContent = 'Scan to open in Slack'
+  caption.appendChild(title)
+
+  const subtitle = document.createElement('div')
+  subtitle.className = 'qr-caption-subtitle'
+  subtitle.textContent = 'View this message on your phone'
+  caption.appendChild(subtitle)
+
   panel.appendChild(caption)
 
   return panel
@@ -57,31 +129,31 @@ function createAnnouncementCard(
   const card = document.createElement('div')
   card.className = 'announcement-card'
 
-  const content = document.createElement('div')
-  content.className = 'announcement-content'
+  card.appendChild(createAnnouncementMain(announcement, showSenderName))
 
-  if (showSenderName) {
-    const sender = document.createElement('div')
-    sender.className = 'announcement-sender'
-    sender.textContent = announcement.senderName
-    content.appendChild(sender)
+  if (showQrCode && announcement.permalink) {
+    const divider = document.createElement('div')
+    divider.className = 'announcement-divider'
+    card.appendChild(divider)
+
+    card.appendChild(createQrPanel(announcement.permalink))
   }
+
+  return card
+}
+
+// Reuses the same card look as an announcement (white, rounded corners,
+// centered) so a legitimately empty channel reads as a calm, on-brand state
+// rather than bare floating text - just without the header/QR, since
+// there's no message to show or link to.
+function createEmptyStateCard(): HTMLElement {
+  const card = document.createElement('div')
+  card.className = 'announcement-card empty-state-card'
 
   const text = document.createElement('div')
   text.className = 'announcement-text'
-  text.textContent = announcement.text
-  content.appendChild(text)
-
-  const time = document.createElement('div')
-  time.className = 'announcement-time'
-  time.textContent = formatTimestamp(announcement.ts)
-  content.appendChild(time)
-
-  card.appendChild(content)
-
-  if (showQrCode && announcement.permalink) {
-    card.appendChild(createQrCodePanel(announcement.permalink))
-  }
+  text.textContent = 'No messages yet'
+  card.appendChild(text)
 
   return card
 }
@@ -103,6 +175,7 @@ export function renderAnnouncements(
   screen.innerHTML = ''
   if (announcements.length === 0) {
     rotationIndex = 0
+    screen.appendChild(createEmptyStateCard())
     return
   }
 
@@ -111,8 +184,7 @@ export function renderAnnouncements(
   rotationIndex = rotationIndex % announcements.length
 
   const showCurrent = () => {
-    screen.innerHTML = ''
-    screen.appendChild(
+    screen.replaceChildren(
       createAnnouncementCard(
         announcements[rotationIndex],
         showSenderName,

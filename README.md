@@ -110,7 +110,9 @@ Slack lets you obtain a bot token directly from the app dashboard without runnin
 1. Go to [api.slack.com/apps](https://api.slack.com/apps) and create a new app (from scratch) in your workspace.
 2. Under **OAuth & Permissions**, add these Bot Token Scopes:
    - `channels:history` — read messages in public channels
+   - `channels:read` — resolve channel names
    - `groups:history` — read messages in private channels (if needed)
+   - `groups:read` — resolve private channel names (if needed)
    - `users:read` — resolve sender display names
 3. Click **Install to Workspace** and authorize the app.
 4. Copy the **Bot User OAuth Token** (starts with `xoxb-`).

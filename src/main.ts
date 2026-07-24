@@ -6,140 +6,81 @@ import {
   setupErrorHandling,
   signalReady,
 } from '@screenly/edge-apps'
-import { reportError, setupSentry } from '@screenly/edge-apps/utils'
-import { AuthError, getConversationHistory, getMessagePermalink } from './api'
+import { setupSentry } from '@screenly/edge-apps/utils'
 import { parseChannelIds } from './content'
 import { createCredentialManager } from './credentials'
 import type { RefreshToken, RuntimeState } from './credentials'
+import { fetchAllLatestMessages, toRenderableAnnouncements } from './messages'
 import { renderAnnouncements, showScreen, showError } from './render'
 import { createSenderNameResolver } from './users'
 import type { SenderNameResolver } from './users'
-import type { SlackMessage, RenderableAnnouncement } from './types'
-
-// getConversationHistory() (src/api.ts) filters out subtype 'channel_join'
-// events, so fetch a small buffer beyond the single message we render in
-// case the most recent event is a join rather than an actual message.
-const HISTORY_FETCH_LIMIT = 10
 
 setupSentry('slack-messages', {
   'slack-messages': { screenName: screenly.metadata.screen_name },
 })
-
-// A message's permalink never changes, so cache it by channel + timestamp to
-// avoid re-fetching on every refresh when the latest message hasn't changed.
-// Bounded so a device running for weeks/months doesn't grow this forever.
-const MAX_PERMALINK_CACHE_ENTRIES = 50
-const permalinkCache = new Map<string, Promise<string>>()
-
-function getCachedPermalink(
-  accessToken: string,
-  channelId: string,
-  messageTs: string
-): Promise<string> {
-  const key = `${channelId}:${messageTs}`
-  const cached = permalinkCache.get(key)
-  if (cached) return cached
-
-  const promise = getMessagePermalink(accessToken, channelId, messageTs).catch(
-    (err) => {
-      permalinkCache.delete(key)
-      throw err
-    }
-  )
-
-  if (permalinkCache.size >= MAX_PERMALINK_CACHE_ENTRIES) {
-    const oldestKey = permalinkCache.keys().next().value
-    if (oldestKey !== undefined) permalinkCache.delete(oldestKey)
-  }
-  permalinkCache.set(key, promise)
-  return promise
-}
 
 function handleError(message: string, displayErrors: boolean): void {
   if (displayErrors) throw new Error(message)
   showError(message)
 }
 
-async function fetchLatestMessage(
-  accessToken: string,
-  channelId: string,
-  fetchPermalink: boolean
-): Promise<{ message: SlackMessage; permalink: string | null } | null> {
-  const messages = await getConversationHistory(
-    accessToken,
-    channelId,
-    HISTORY_FETCH_LIMIT
-  )
-  const message = messages[0]
-  if (!message) return null
+async function retryAfterAuthError(
+  channelIds: string[],
+  showQrCode: boolean,
+  getRuntimeState: () => RuntimeState,
+  refreshToken: RefreshToken,
+  displayErrors: boolean
+): Promise<
+  | ({
+      accessToken: string
+    } & Awaited<ReturnType<typeof fetchAllLatestMessages>>)
+  | null
+> {
+  try {
+    await refreshToken()
+    const { accessToken } = getRuntimeState()
 
-  let permalink: string | null = null
-  if (fetchPermalink) {
-    try {
-      permalink = await getCachedPermalink(accessToken, channelId, message.ts)
-    } catch (err) {
-      if (err instanceof AuthError) throw err
-      reportError(err, { source: 'slack-permalink', channelId })
+    if (!accessToken) {
+      handleError('No access token.', displayErrors)
+      return null
     }
+
+    const fetchResult = await fetchAllLatestMessages(
+      accessToken,
+      channelIds,
+      showQrCode
+    )
+    return { accessToken, ...fetchResult }
+  } catch (retryErr) {
+    handleError(
+      retryErr instanceof Error
+        ? retryErr.message
+        : 'Session expired. Please re-authenticate.',
+      displayErrors
+    )
+    return null
+  }
+}
+
+// A genuine failure (auth error surviving retry, or a real Slack/network
+// error) still shows the error card. But if every channel simply came back
+// empty (a legitimately empty channel), that's not an error - show a neutral
+// empty state instead.
+function renderEmptyOrError(
+  authError: boolean,
+  hasFetchError: boolean,
+  displayErrors: boolean,
+  showSenderNames: boolean,
+  showQrCode: boolean,
+  rotationSeconds: number
+): void {
+  if (authError || hasFetchError) {
+    handleError('No channel messages could be loaded.', displayErrors)
+    return
   }
 
-  return { message, permalink }
-}
-
-async function fetchAllLatestMessages(
-  accessToken: string,
-  channelIds: string[],
-  fetchPermalink: boolean
-): Promise<{
-  results: { message: SlackMessage; permalink: string | null }[]
-  authError: boolean
-}> {
-  const settled = await Promise.allSettled(
-    channelIds.map((channelId) =>
-      fetchLatestMessage(accessToken, channelId, fetchPermalink)
-    )
-  )
-
-  const results: { message: SlackMessage; permalink: string | null }[] = []
-  let authError = false
-
-  settled.forEach((result, index) => {
-    if (result.status === 'fulfilled') {
-      if (result.value) results.push(result.value)
-      return
-    }
-
-    if (result.reason instanceof AuthError) {
-      authError = true
-      return
-    }
-
-    reportError(result.reason, {
-      source: 'slack-content',
-      channelId: channelIds[index],
-    })
-  })
-
-  return { results, authError }
-}
-
-async function toRenderableAnnouncements(
-  accessToken: string,
-  results: { message: SlackMessage; permalink: string | null }[],
-  showSenderNames: boolean,
-  resolveSenderName: SenderNameResolver
-): Promise<RenderableAnnouncement[]> {
-  return Promise.all(
-    results.map(async ({ message, permalink }) => ({
-      ts: message.ts,
-      text: message.text,
-      senderName:
-        showSenderNames && message.user
-          ? await resolveSenderName(accessToken, message.user)
-          : (message.username ?? message.user ?? 'Unknown'),
-      permalink,
-    }))
-  )
+  renderAnnouncements([], showSenderNames, showQrCode, rotationSeconds)
+  showScreen('message-screen')
 }
 
 async function fetchAndRender(
@@ -169,36 +110,30 @@ async function fetchAndRender(
     showQrCode
   )
   let results = initialFetch.results
-  const authError = initialFetch.authError
+  let authError = initialFetch.authError
+  let hasFetchError = initialFetch.hasFetchError
 
   if (authError) {
-    try {
-      await refreshToken()
-      ;({ accessToken } = getRuntimeState())
-
-      if (!accessToken) {
-        handleError('No access token.', displayErrors)
-        return
-      }
-
-      ;({ results } = await fetchAllLatestMessages(
-        accessToken,
-        channelIds,
-        showQrCode
-      ))
-    } catch (retryErr) {
-      handleError(
-        retryErr instanceof Error
-          ? retryErr.message
-          : 'Session expired. Please re-authenticate.',
-        displayErrors
-      )
-      return
-    }
+    const retryResult = await retryAfterAuthError(
+      channelIds,
+      showQrCode,
+      getRuntimeState,
+      refreshToken,
+      displayErrors
+    )
+    if (!retryResult) return
+    ;({ accessToken, results, authError, hasFetchError } = retryResult)
   }
 
   if (results.length === 0) {
-    handleError('No channel messages could be loaded.', displayErrors)
+    renderEmptyOrError(
+      authError,
+      hasFetchError,
+      displayErrors,
+      showSenderNames,
+      showQrCode,
+      rotationSeconds
+    )
     return
   }
 
