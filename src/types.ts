@@ -5,23 +5,15 @@ export interface SlackMessage {
   text: string
 }
 
-export interface SlackChannel {
-  id: string
-  name: string
+export interface TextSegment {
+  kind: 'text' | 'user-mention' | 'channel-mention'
+  value: string
 }
 
-export interface ChannelFeed {
-  channel: SlackChannel
-  messages: SlackMessage[]
-}
-
-export interface RenderableMessage {
+export interface RenderableAnnouncement {
   ts: string
-  text: string
+  textSegments: TextSegment[]
   senderName: string
-}
-
-export interface RenderableChannelFeed {
-  channel: SlackChannel
-  messages: RenderableMessage[]
+  channelName: string
+  permalink: string | null
 }

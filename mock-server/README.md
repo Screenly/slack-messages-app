@@ -13,7 +13,9 @@ A local OAuth helper for the Slack Messages Edge App. It handles Slack's OAuth v
 2. Under **OAuth & Permissions**, add `http://localhost:3000/oauth/callback` under **Redirect URLs** and save.
 3. Under **OAuth & Permissions → Scopes → Bot Token Scopes**, add:
    - `channels:history` — read messages in public channels
+   - `channels:read` — resolve channel names
    - `groups:history` — read messages in private channels (if needed)
+   - `groups:read` — resolve private channel names (if needed)
    - `users:read` — resolve sender display names
 4. Under **Basic Information → App Credentials**, copy the **Client ID** and **Client Secret**.
 
