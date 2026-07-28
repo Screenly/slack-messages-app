@@ -17,19 +17,21 @@ function createMessageElement(
   ts: string
 ): HTMLElement {
   const message = document.createElement('div')
-  message.className = 'message'
+  message.className = 'message flex flex-col gap-1'
 
   const sender = document.createElement('div')
-  sender.className = 'message-sender'
+  sender.className =
+    'message-sender text-[0.8rem] font-semibold text-[#9d9d9f] flex items-baseline gap-2'
   sender.textContent = senderName
 
   const time = document.createElement('span')
-  time.className = 'message-time'
+  time.className = 'message-time text-xs font-normal text-[#9d9d9f] opacity-70'
   time.textContent = formatTimestamp(ts)
   sender.appendChild(time)
 
   const body = document.createElement('div')
-  body.className = 'message-text'
+  body.className =
+    'message-text text-base leading-normal text-[#dadadb] [word-break:break-word] whitespace-pre-wrap'
   body.textContent = text
 
   message.append(sender, body)
@@ -41,19 +43,22 @@ function createChannelCard(
   messages: RenderableMessage[]
 ): HTMLElement {
   const card = document.createElement('div')
-  card.className = 'channel-card'
+  card.className =
+    'channel-card bg-[#1a1a1a] border border-[#2a2a2a] rounded-3xl py-6 px-7 flex flex-col gap-4 min-h-0 overflow-hidden'
 
   const header = document.createElement('div')
-  header.className = 'channel-header'
+  header.className =
+    'channel-header text-xl font-bold tracking-[-0.02em] text-[#f2f2f3] flex-shrink-0 pb-3 border-b border-[#2a2a2a]'
   header.textContent = `#${channelName}`
   card.appendChild(header)
 
   const list = document.createElement('div')
-  list.className = 'messages-list'
+  list.className = 'messages-list flex-1 overflow-auto flex flex-col gap-5'
 
   if (messages.length === 0) {
     const empty = document.createElement('div')
-    empty.className = 'empty-state'
+    empty.className =
+      'empty-state text-[#9d9d9f] text-sm text-center m-auto'
     empty.textContent = 'No messages yet.'
     list.appendChild(empty)
   } else {
