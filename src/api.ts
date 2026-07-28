@@ -1,5 +1,6 @@
 import { getCorsProxyUrl } from '@screenly/edge-apps'
-import type { SlackChannel, SlackMessage } from './types'
+import { BackendServerError } from './errors'
+import type { SlackMessage } from './types'
 
 const SLACK_API_BASE = 'https://slack.com/api'
 const AUTH_ERROR_CODES = new Set([
@@ -15,16 +16,25 @@ function apiUrl(path: string): string {
   return `${getCorsProxyUrl()}/${SLACK_API_BASE}${path}`
 }
 
-async function slackFetch<T>(
-  accessToken: string,
-  path: string,
-  params: Record<string, string>
-): Promise<T> {
-  const query = new URLSearchParams(params).toString()
-  const res = await fetch(`${apiUrl(path)}?${query}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
+// Normalizes network-level failures (offline, DNS, timeout) to a
+// `BackendServerError`, same as the 5xx/429 handling in `parseSlackResponse`.
+async function performRequest(
+  url: string,
+  init?: RequestInit
+): Promise<Response> {
+  try {
+    return await fetch(url, init)
+  } catch (err) {
+    throw new BackendServerError(
+      `Slack could not be reached (${err instanceof Error ? err.message : String(err)}).`
+    )
+  }
+}
 
+async function parseSlackResponse<T>(res: Response, path: string): Promise<T> {
+  if (res.status >= 500 || res.status === 429) {
+    throw new BackendServerError(`Slack's API had a problem (${res.status}).`)
+  }
   if (!res.ok) throw new Error(`Slack API error ${res.status}: ${path}`)
 
   const data = (await res.json()) as { ok: boolean; error?: string }
@@ -38,10 +48,23 @@ async function slackFetch<T>(
   return data as T
 }
 
+async function slackFetch<T>(
+  accessToken: string,
+  path: string,
+  params: Record<string, string>
+): Promise<T> {
+  const query = new URLSearchParams(params).toString()
+  const res = await performRequest(`${apiUrl(path)}?${query}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+
+  return parseSlackResponse<T>(res, path)
+}
+
 export async function getConversationInfo(
   accessToken: string,
   channelId: string
-): Promise<SlackChannel> {
+): Promise<{ id: string; name: string }> {
   const data = await slackFetch<{ channel: { id: string; name: string } }>(
     accessToken,
     '/conversations.info',
@@ -76,6 +99,32 @@ export async function getConversationHistory(
       username: message.username ?? null,
       text: message.text ?? '',
     }))
+}
+
+export async function getMessagePermalink(
+  accessToken: string,
+  channelId: string,
+  messageTs: string
+): Promise<string> {
+  const data = await slackFetch<{ permalink: string }>(
+    accessToken,
+    '/chat.getPermalink',
+    { channel: channelId, message_ts: messageTs }
+  )
+  return data.permalink
+}
+
+// auth.test is POST-only, unlike the GET calls in this file, so it can't go
+// through slackFetch(); it returns the workspace base URL, used to build a
+// browsable channel link since there's no dedicated "get channel URL" endpoint.
+export async function getWorkspaceUrl(accessToken: string): Promise<string> {
+  const res = await performRequest(apiUrl('/auth.test'), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+
+  const data = await parseSlackResponse<{ url: string }>(res, '/auth.test')
+  return data.url
 }
 
 export async function getUserDisplayName(

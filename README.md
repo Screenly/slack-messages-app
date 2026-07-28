@@ -1,8 +1,8 @@
 # Slack Messages App
 
-Displays recent messages from one or more Slack channels on your Screenly digital signage screens using the Slack Web API.
+Displays the latest message from a Slack channel, full screen, on your Screenly digital signage screens using the Slack Web API. Built for sharing announcements — for example, a private channel dedicated to a set of screens — rather than following high-traffic channels. The channel itself is never shown on screen — only the message text, and optionally its sender's name and a QR code linking back to it on Slack.
 
-![Slack Messages App Preview](screenshots/feed-3840x2160.webp)
+![Slack Messages App Preview](screenshots/message-3840x2160.webp)
 
 ## Prerequisites
 
@@ -26,17 +26,21 @@ bun run dev
 
 This generates a `mock-data.yml` file (gitignored), starts the dev server, and starts a local CORS proxy on `http://127.0.0.1:8080`.
 
+For local development without pasting a bot token by hand, use the [mock-server](mock-server/README.md). It simulates the Screenly OAuth service by running a local OAuth v2 flow against Slack and serving the resulting bot token to the Edge App.
+
 After `mock-data.yml` is generated, fill in your values under `settings`:
 
 ```yaml
 settings:
   access_token: 'xoxb-your-bot-token'
-  channel_ids: 'C0123ABCDEF,C0456GHIJKL'
+  channel_id: 'C0123ABCDEF'
   display_errors: 'false'
-  message_limit: '10'
   refresh_interval: '60'
+  show_qr_code: 'true'
   show_sender_names: 'true'
 ```
+
+Or, if using the `mock-server`, set `screenly_oauth_tokens_url: 'http://localhost:3000/'` instead of `access_token`.
 
 ## Building
 
@@ -84,10 +88,10 @@ screenly edge-app instance create
 | Setting             | Type   | Required | Description                                                                                           |
 | ------------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------- |
 | `access_token`      | secret | No       | For testing only. In production, the token is fetched dynamically via the API.                        |
-| `channel_ids`       | string | Yes      | Comma-separated list of Slack channel IDs to display messages from                                    |
-| `message_limit`     | string | No       | Max number of recent messages shown per channel. Default: `10`                                        |
+| `channel_id`        | string | Yes      | Slack channel ID to display messages from                                                             |
 | `refresh_interval`  | string | No       | How often (in seconds) to refresh Slack messages. Default: `60`                                       |
 | `display_errors`    | string | No       | Display errors on screen for debugging (`true`/`false`). Default: `false`                             |
+| `show_qr_code`      | string | No       | Show a QR code linking to the message on Slack (`true`/`false`). Default: `true`                      |
 | `show_sender_names` | string | No       | Resolve and display each message's sender name (`true`/`false`). Default: `true`                      |
 | `sentry_dsn`        | secret | No       | Sentry DSN for reporting credential and content-load errors. Global setting — leave empty to disable. |
 
@@ -99,7 +103,7 @@ This app reads a Slack bot token at runtime via `getCredentials()` (see `src/cre
 
 ### Getting a bot token for local development
 
-Unlike Salesforce or Google, Slack lets you obtain a bot token directly from the app dashboard without running a local OAuth server:
+Slack lets you obtain a bot token directly from the app dashboard without running a local OAuth server, which is the quickest option for a one-off test:
 
 1. Go to [api.slack.com/apps](https://api.slack.com/apps) and create a new app (from scratch) in your workspace.
 2. Under **OAuth & Permissions**, add these Bot Token Scopes:
@@ -116,14 +120,12 @@ Unlike Salesforce or Google, Slack lets you obtain a bot token directly from the
    screenly edge-app setting set access_token=xoxb-your-bot-token
    ```
 
+Alternatively, use the [mock-server](mock-server/README.md) to go through the actual OAuth v2 authorize-and-exchange flow locally — closer to how production will work once `Screenly/Screenly` has a real OAuth handler for `oauth:slack:access_token`.
+
 ## Error Reporting
 
 If `sentry_dsn` is set, the app reports credential and content-load failures to Sentry via `@screenly/edge-apps/utils`. Repeated credential-refresh failures (e.g. during the background token-refresh loop) are deduped so only the first consecutive failure is reported, not every retry. Leave `sentry_dsn` empty to disable reporting entirely.
 
-## Finding Channel IDs
+## Finding a Channel ID
 
-Open a channel in Slack, click its name, and scroll to the bottom of the "About" tab — the Channel ID is shown there (e.g. `C0123ABCDEF`). You can also right-click a channel and choose **Copy link**; the ID is the last path segment of the URL.
-
-## Multiple Channels
-
-Set `channel_ids` to a comma-separated list (e.g. `C0123ABCDEF,C0456GHIJKL`) to display messages from several channels side by side. Each channel renders as its own card; if a channel fails to load (e.g. the bot isn't a member), the remaining channels still render.
+Open a channel in Slack, click its name, and scroll to the bottom of the "About" tab — the Channel ID is shown there (e.g. `C0123ABCDEF`). You can also right-click a channel and choose **Copy link**; the ID is the last path segment of the URL. Only one channel can be configured at a time.
