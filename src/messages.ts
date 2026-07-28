@@ -16,9 +16,6 @@ import type { SlackMessage, RenderableAnnouncement } from './types'
 // case the most recent event is a join rather than an actual message.
 const HISTORY_FETCH_LIMIT = 10
 
-// A message's permalink never changes, a channel's name rarely does, and a
-// workspace's base URL never changes for a given token, so cache all three
-// to avoid re-fetching them on every refresh cycle.
 const MAX_CACHE_ENTRIES = 50
 const getCachedPermalinkValue = createBoundedCache<string>(MAX_CACHE_ENTRIES)
 const getCachedChannelNameValue = createBoundedCache<string>(MAX_CACHE_ENTRIES)
@@ -55,9 +52,6 @@ export interface FetchedMessage {
   channelName: string
 }
 
-// Best-effort fetch: a failure here shouldn't block the rest of the render,
-// so report it and fall back, but still propagate AuthError so callers can
-// retry the whole thing after a token refresh.
 async function bestEffort<T>(
   fetcher: () => Promise<T>,
   fallback: T,
@@ -112,14 +106,7 @@ export async function fetchLatestAnnouncement(
 ): Promise<{
   result: FetchedMessage | null
   authError: boolean
-  // True when the channel raised a genuine fetch error (anything other than
-  // an auth error, which is handled separately via retry). Lets callers tell
-  // "the channel is legitimately empty" apart from "the channel failed to
-  // load".
   hasFetchError: boolean
-  // The error behind `hasFetchError`, so callers can decide whether it's
-  // eligible for persistent-cache failover (see `errors.ts`). Always null
-  // unless `hasFetchError` is true.
   fetchError: Error | null
 }> {
   try {
@@ -150,10 +137,6 @@ export async function fetchLatestAnnouncement(
   }
 }
 
-// Builds a browsable link to the channel itself (not a specific message),
-// for use as the empty-state QR target. Best-effort, same as the
-// permalink/channel-name fetches above: returns null on failure rather than
-// blocking the UI, but still propagates AuthError so callers can retry.
 export async function getChannelLink(
   accessToken: string,
   channelId: string

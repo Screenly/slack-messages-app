@@ -16,11 +16,8 @@ function apiUrl(path: string): string {
   return `${getCorsProxyUrl()}/${SLACK_API_BASE}${path}`
 }
 
-// Wraps `fetch` so a network-level failure (offline device, DNS failure,
-// timeout, ...) surfaces as a `BackendServerError` alongside 5xx/429
-// responses (see `parseSlackResponse`), rather than as a raw, differently
-// shaped exception - this is what lets callers treat "Slack is unreachable"
-// uniformly regardless of which layer it failed at.
+// Normalizes network-level failures (offline, DNS, timeout) to a
+// `BackendServerError`, same as the 5xx/429 handling in `parseSlackResponse`.
 async function performRequest(
   url: string,
   init?: RequestInit
@@ -117,11 +114,9 @@ export async function getMessagePermalink(
   return data.permalink
 }
 
-// auth.test is documented as POST-only (unlike the rest of the calls in this
-// file, which are all GET), so it can't go through slackFetch(). It requires
-// no special OAuth scope and returns the workspace's base URL (e.g.
-// "https://myteam.slack.com/"), which we use to build a browsable channel
-// link since there's no dedicated "get channel URL" endpoint.
+// auth.test is POST-only, unlike the GET calls in this file, so it can't go
+// through slackFetch(); it returns the workspace base URL, used to build a
+// browsable channel link since there's no dedicated "get channel URL" endpoint.
 export async function getWorkspaceUrl(accessToken: string): Promise<string> {
   const res = await performRequest(apiUrl('/auth.test'), {
     method: 'POST',

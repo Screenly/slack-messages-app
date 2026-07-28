@@ -14,10 +14,8 @@ export interface AnnouncementLoadError {
   error: Error
 }
 
-// Nothing to show and nothing to fall back to: the caller should leave the
-// screen exactly as it is (see `announcement-presenter.ts`) rather than
-// rendering an error, matching the "abort" step of the failover-caching
-// flow - a transient, once-off hiccup shouldn't flash an error card.
+// Nothing to show and nothing to fall back to: leave the screen as-is (see
+// `announcement-presenter.ts`) rather than flashing an error for a hiccup.
 export interface AnnouncementLoadSkipped {
   skipped: true
 }
@@ -32,10 +30,8 @@ function normalizeError(error: unknown): Error {
     : new Error('Session expired. Please re-authenticate.')
 }
 
-// Decides what to do when there's no access token to work with: either
-// because none has ever been fetched, or because a credential refresh just
-// failed and left the runtime state empty (see `credentials.ts`, which
-// already tries its own persistent-cache fallback before this is reached).
+// `credentials.ts` already tries its own persistent-cache fallback before
+// this is reached, so by this point there's genuinely no token available.
 function handleMissingCredentials(
   credentialError: Error | null,
   displayErrors: boolean
@@ -46,11 +42,6 @@ function handleMissingCredentials(
     : { error }
 }
 
-// On a successful fetch, refresh the persistent cache so a later failure
-// has something fresh to fall back to. On a genuine fetch failure, fall
-// back to the persistent cache when the failure is eligible for it (see
-// `shouldSkipBackendError`); otherwise pass the failure through unchanged
-// so the presenter shows it as-is.
 function resolveContent(
   channelId: string,
   accessToken: string,

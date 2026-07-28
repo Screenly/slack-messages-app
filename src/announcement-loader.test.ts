@@ -153,9 +153,6 @@ describe('createAnnouncementLoader token refresh', () => {
 
 describe('createAnnouncementLoader credential retry recovery', () => {
   test('proceeds to retry the fetch when a failed refresh still recovers a token from its own cache', async () => {
-    // Simulates credentials.ts's own persistent-cache fallback: refreshToken()
-    // rejects, but getRuntimeState() is already repopulated with a
-    // cache-recovered token by the time the loader re-checks it.
     let accessToken: string | null = 'expired-token'
     const getRuntimeState = (): RuntimeState => ({
       accessToken,
@@ -195,10 +192,6 @@ describe('createAnnouncementLoader credential retry recovery', () => {
 })
 
 describe('createAnnouncementLoader credential retry with no recovery', () => {
-  // The initial `getRuntimeState()` call (before the fetch attempt) reports
-  // the soon-to-expire token; every call after the failed `refreshToken()`
-  // simulates credentials.ts having found nothing in its own cache, leaving
-  // the runtime state empty.
   function makeGetRuntimeState() {
     let callCount = 0
     return (): RuntimeState => {

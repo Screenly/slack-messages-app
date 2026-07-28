@@ -30,27 +30,29 @@ function createAnnouncementHeader(
   showSenderName: boolean
 ): HTMLElement {
   const header = document.createElement('div')
-  header.className = 'announcement-header'
+  header.className = 'announcement-header flex items-center gap-[1.125rem]'
 
   if (showSenderName) {
     const avatar = document.createElement('div')
-    avatar.className = 'announcement-avatar'
+    avatar.className =
+      'announcement-avatar flex-shrink-0 w-[4.5rem] h-[4.5rem] rounded-full bg-[#4a154b] text-white flex items-center justify-center font-bold text-[1.65rem]'
     avatar.textContent = getInitials(announcement.senderName)
     header.appendChild(avatar)
   }
 
   const meta = document.createElement('div')
-  meta.className = 'announcement-meta'
+  meta.className = 'announcement-meta min-w-0'
 
   if (showSenderName) {
     const sender = document.createElement('div')
-    sender.className = 'announcement-sender'
+    sender.className =
+      'announcement-sender text-[2.1rem] font-bold leading-[1.3] text-[#1a1a1a]'
     sender.textContent = announcement.senderName
     meta.appendChild(sender)
   }
 
   const subline = document.createElement('div')
-  subline.className = 'announcement-subline'
+  subline.className = 'announcement-subline text-[1.35rem] text-[#6b6b70]'
   subline.textContent = [
     announcement.channelName && `#${announcement.channelName}`,
     formatTimestamp(announcement.ts),
@@ -88,7 +90,7 @@ function createAnnouncementMain(
   showSenderName: boolean
 ): HTMLElement {
   const main = document.createElement('div')
-  main.className = 'announcement-main'
+  main.className = 'announcement-main gap-7'
 
   main.appendChild(createAnnouncementHeader(announcement, showSenderName))
   main.appendChild(createAnnouncementText(announcement.textSegments))
@@ -98,7 +100,8 @@ function createAnnouncementMain(
 
 function createQrPanel(link: string, captionSubtitle: string): HTMLElement {
   const panel = document.createElement('div')
-  panel.className = 'announcement-qr-panel'
+  panel.className =
+    'announcement-qr-panel flex-shrink-0 bg-[#e8e8ea] p-12 flex flex-col items-center justify-center gap-5 text-center portrait:flex-row portrait:justify-start portrait:text-left portrait:py-10 portrait:px-14 portrait:gap-9'
 
   const qr = qrcode(0, 'M')
   qr.addData(link)
@@ -108,22 +111,27 @@ function createQrPanel(link: string, captionSubtitle: string): HTMLElement {
     qr.createSvgTag({ scalable: true }),
     'image/svg+xml'
   )
+  const svg = document.importNode(svgDoc.documentElement, true)
+  svg.setAttribute('class', 'block w-full h-full')
 
   const code = document.createElement('div')
-  code.className = 'qr-code'
-  code.replaceChildren(document.importNode(svgDoc.documentElement, true))
+  code.className =
+    'qr-code bg-white rounded-xl p-3 w-48 h-48 shadow-[0_0.25rem_0.75rem_rgba(0,0,0,0.12)] portrait:w-64 portrait:h-64'
+  code.replaceChildren(svg)
   panel.appendChild(code)
 
   const caption = document.createElement('div')
-  caption.className = 'qr-caption'
+  caption.className =
+    'qr-caption flex flex-col gap-[0.35rem] portrait:text-left'
 
   const title = document.createElement('div')
-  title.className = 'qr-caption-title'
+  title.className =
+    'qr-caption-title text-[1.75rem] font-bold text-[#1a1a1a] portrait:text-[2rem]'
   title.textContent = 'Scan to open in Slack'
   caption.appendChild(title)
 
   const subtitle = document.createElement('div')
-  subtitle.className = 'qr-caption-subtitle'
+  subtitle.className = 'qr-caption-subtitle text-muted-subtitle'
   subtitle.textContent = captionSubtitle
   caption.appendChild(subtitle)
 
@@ -139,12 +147,14 @@ function createAnnouncementLayout(
   captionSubtitle: string
 ): HTMLElement {
   const card = document.createElement('div')
-  card.className = 'announcement-card'
+  card.className =
+    'announcement-card bg-white rounded-3xl shadow-[0_0.5rem_1.25rem_rgba(0,0,0,0.16)] flex flex-row portrait:flex-col max-w-[74rem] portrait:max-w-full w-full max-h-full overflow-hidden'
   card.appendChild(main)
 
   if (showQrCode && link) {
     const divider = document.createElement('div')
-    divider.className = 'announcement-divider'
+    divider.className =
+      'announcement-divider flex-shrink-0 w-[0.0625rem] self-stretch bg-[rgba(0,0,0,0.08)] portrait:w-auto portrait:h-[0.0625rem] portrait:self-auto portrait:mx-14 portrait:my-0'
     card.appendChild(divider)
     card.appendChild(createQrPanel(link, captionSubtitle))
   }
@@ -165,14 +175,9 @@ function createAnnouncementCard(
   )
 }
 
-// Reuses the same two-panel announcement-card layout (main + divider + QR
-// panel) so a legitimately empty channel reads as a calm, on-brand state
-// rather than a bespoke smaller card - just without the header, since
-// there's no message to show, and linking the QR to the channel itself
-// (not a specific message) since there's nothing to permalink to.
 function createEmptyStateMain(): HTMLElement {
   const main = document.createElement('div')
-  main.className = 'announcement-main empty-state-main'
+  main.className = 'announcement-main empty-state-main justify-center gap-3'
 
   const text = document.createElement('div')
   text.className = 'announcement-text'
@@ -180,7 +185,7 @@ function createEmptyStateMain(): HTMLElement {
   main.appendChild(text)
 
   const subtitle = document.createElement('div')
-  subtitle.className = 'empty-state-subtitle'
+  subtitle.className = 'empty-state-subtitle text-muted-subtitle'
   subtitle.textContent = 'New messages will appear here on the next refresh'
   main.appendChild(subtitle)
 

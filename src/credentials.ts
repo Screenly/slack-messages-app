@@ -17,9 +17,8 @@ async function fetchToken(): Promise<string | undefined> {
     const { token } = await getCredentials()
     return token
   } catch (err) {
-    // A failure to even reach the credentials backend is transient by
-    // nature, unlike an empty/missing token (thrown below), which indicates
-    // a genuine configuration problem that a cached token wouldn't fix.
+    // Unreachable backend is transient, unlike an empty token (thrown
+    // below), which is a genuine config problem a cache wouldn't fix.
     throw new BackendServerError(
       `Slack credentials could not be reached (${err instanceof Error ? err.message : String(err)}).`
     )
@@ -55,10 +54,8 @@ export function createCredentialManager(displayErrors: boolean): {
       }
       credentialError = error
 
-      // Only consult the cache when there's no live token already in hand,
-      // so a manager that has already recovered credentials (live or
-      // cached) never overwrites them with a possibly-stale cache entry on
-      // a later failed refresh.
+      // Only fall back to the cache if we don't already hold a token, so a
+      // later failed refresh can't clobber good credentials with stale ones.
       if (!accessToken && shouldSkipBackendError(error, displayErrors)) {
         const cached = readCachedCredentials()
         if (cached) accessToken = cached.accessToken

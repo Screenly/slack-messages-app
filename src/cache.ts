@@ -1,6 +1,3 @@
-// Simple FIFO-bounded async cache, so long-running signage sessions don't
-// accumulate unbounded entries (e.g. one per distinct message/channel seen
-// over weeks or months).
 export function createBoundedCache<T>(maxEntries: number) {
   const cache = new Map<string, Promise<T>>()
 
