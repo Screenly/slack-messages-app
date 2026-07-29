@@ -31,7 +31,7 @@ describe('parseMrkdwn', () => {
     expect(resolveChannel).not.toHaveBeenCalled()
   })
 
-  test('renders broadcasts and links as readable text', async () => {
+  test('renders broadcasts as readable text and links as a distinct segment', async () => {
     expect(
       await parseMrkdwn(
         '<!channel> see <https://example.com|the details>',
@@ -41,7 +41,13 @@ describe('parseMrkdwn', () => {
     ).toEqual([
       { kind: 'text', value: '@channel' },
       { kind: 'text', value: ' see ' },
-      { kind: 'text', value: 'the details' },
+      { kind: 'link', value: 'the details' },
     ])
+  })
+
+  test('renders a link with no label using its raw URL', async () => {
+    expect(
+      await parseMrkdwn('<https://example.com>', resolveUser, resolveChannel)
+    ).toEqual([{ kind: 'link', value: 'https://example.com' }])
   })
 })

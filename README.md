@@ -97,9 +97,7 @@ screenly edge-app instance create
 
 ## Authentication
 
-This app reads a Slack bot token at runtime via `getCredentials()` (see `src/credentials.ts`). In production, Screenly's OAuth service is expected to supply this token for the `oauth:slack:access_token` setting.
-
-**Note:** as of this writing, `Screenly/Screenly` does not yet have an OAuth handler wired up for `oauth:slack:access_token`, and the existing Slack integration scope only covers listing channels and posting messages (used for internal notifications) — not reading channel history. Widening the Slack OAuth scope and adding the missing handler is tracked separately as a backend task.
+This app reads a Slack bot token at runtime via `getCredentials()` (see `src/credentials.ts`). In production, Screenly's OAuth service supplies this token for the `oauth:slack:access_token` setting, using the org's existing Slack integration.
 
 ### Getting a bot token for local development
 
@@ -120,7 +118,7 @@ Slack lets you obtain a bot token directly from the app dashboard without runnin
    screenly edge-app setting set access_token=xoxb-your-bot-token
    ```
 
-Alternatively, use the [mock-server](mock-server/README.md) to go through the actual OAuth v2 authorize-and-exchange flow locally — closer to how production will work once `Screenly/Screenly` has a real OAuth handler for `oauth:slack:access_token`.
+Alternatively, use the [mock-server](mock-server/README.md) to go through the actual OAuth v2 authorize-and-exchange flow locally — closer to how production works.
 
 ## Error Reporting
 
@@ -128,4 +126,6 @@ If `sentry_dsn` is set, the app reports credential and content-load failures to 
 
 ## Finding a Channel ID
 
-Open a channel in Slack, click its name, and scroll to the bottom of the "About" tab — the Channel ID is shown there (e.g. `C0123ABCDEF`). You can also right-click a channel and choose **Copy link**; the ID is the last path segment of the URL. Only one channel can be configured at a time.
+In the Screenly web console, once the Slack integration is connected, `channel_id` renders as a dropdown listing your workspace's channels by name — just pick one, no need to know its raw ID.
+
+For local development (`mock-data.yml` or the CLI), you still set the raw ID directly: open a channel in Slack, click its name, and scroll to the bottom of the "About" tab — the Channel ID is shown there (e.g. `C0123ABCDEF`). You can also right-click a channel and choose **Copy link**; the ID is the last path segment of the URL. Only one channel can be configured at a time.

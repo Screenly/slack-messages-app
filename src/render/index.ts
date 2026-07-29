@@ -1,10 +1,11 @@
 import qrcode from 'qrcode-generator'
 import type { RenderableAnnouncement, TextSegment } from '../types'
 
-const MENTION_CLASS_NAMES: Record<TextSegment['kind'], string | null> = {
+const SEGMENT_CLASS_NAMES: Record<TextSegment['kind'], string | null> = {
   text: null,
   'user-mention': 'mention-user',
   'channel-mention': 'mention-channel',
+  link: 'mention-link',
 }
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -70,7 +71,7 @@ function createAnnouncementText(segments: TextSegment[]): HTMLElement {
   text.className = 'announcement-text'
 
   for (const segment of segments) {
-    const className = MENTION_CLASS_NAMES[segment.kind]
+    const className = SEGMENT_CLASS_NAMES[segment.kind]
     if (!className) {
       text.appendChild(document.createTextNode(segment.value))
       continue

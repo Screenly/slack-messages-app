@@ -1,23 +1,19 @@
 import {
   REDIRECT_URI,
   SLACK_AUTH_URL,
+  SLACK_BOT_SCOPES,
   SLACK_TOKEN_URL,
-  SLACK_USER_SCOPES,
 } from './constants'
 import type { StoredTokens } from './db'
 
 interface SlackTokenResponse {
   ok: boolean
   error?: string
+  access_token?: string
+  scope?: string
   team?: { id: string; name: string }
-  // User-token grants are returned here, not at the top level, since we
-  // request `user_scope` rather than `scope` (bot scopes).
-  authed_user?: {
-    access_token?: string
-    scope?: string
-    refresh_token?: string
-    expires_in?: number
-  }
+  expires_in?: number
+  refresh_token?: string
 }
 
 export function createAuthorizationUrl(
@@ -27,7 +23,7 @@ export function createAuthorizationUrl(
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: REDIRECT_URI,
-    user_scope: SLACK_USER_SCOPES,
+    scope: SLACK_BOT_SCOPES,
     state,
   })
   return `${SLACK_AUTH_URL}?${params.toString()}`
@@ -63,16 +59,15 @@ export async function exchangeCodeForTokens(
 }
 
 export function toStoredTokens(
-  response: SlackTokenResponse & { authed_user: { access_token: string } }
+  response: SlackTokenResponse & { access_token: string }
 ): StoredTokens {
-  const { authed_user } = response
   return {
-    access_token: authed_user.access_token,
-    refresh_token: authed_user.refresh_token ?? null,
-    scope: authed_user.scope ?? '',
+    access_token: response.access_token,
+    refresh_token: response.refresh_token ?? null,
+    scope: response.scope ?? '',
     team_name: response.team?.name ?? 'Unknown workspace',
-    expires_at: authed_user.expires_in
-      ? Math.floor(Date.now() / 1000) + authed_user.expires_in
+    expires_at: response.expires_in
+      ? Math.floor(Date.now() / 1000) + response.expires_in
       : null,
   }
 }
