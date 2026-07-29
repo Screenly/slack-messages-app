@@ -32,7 +32,7 @@ function resolveBroadcast(token: string): TextSegment {
 
 function resolveLink(token: string): TextSegment {
   const [url, label] = token.split('|')
-  return { kind: 'text', value: label ?? url }
+  return { kind: 'link', value: label ?? url }
 }
 
 async function resolveToken(
