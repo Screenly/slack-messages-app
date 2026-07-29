@@ -59,8 +59,8 @@ function scheduleNextRefresh(): void {
   if (refreshTimer) clearTimeout(refreshTimer)
 
   // Only Slack apps with token rotation enabled return a refresh_token and
-  // expires_at; without rotation, bot tokens don't expire, so there's
-  // nothing to schedule.
+  // expires_at; without rotation, tokens don't expire, so there's nothing
+  // to schedule.
   const tokens = loadTokens()
   if (!tokens?.refresh_token || !tokens.expires_at) return
 
