@@ -85,8 +85,7 @@ function createCallbackHandler(
       clientSecret,
       callback.code
     )
-    const userAccessToken = response?.authed_user?.access_token
-    if (!response || !userAccessToken) {
+    if (!response?.access_token) {
       res.render('error', {
         message: 'Token exchange failed. Check server logs.',
       })
@@ -94,10 +93,7 @@ function createCallbackHandler(
     }
 
     saveTokens(
-      toStoredTokens({
-        ...response,
-        authed_user: { ...response.authed_user, access_token: userAccessToken },
-      })
+      toStoredTokens({ ...response, access_token: response.access_token })
     )
     startRefreshLoop()
     res.redirect('/')

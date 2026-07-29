@@ -21,4 +21,8 @@
   .mention-channel {
     @apply text-[#7c3085] font-bold;
   }
+
+  .mention-link {
+    @apply text-[#7c3085] underline;
+  }
 }

@@ -6,7 +6,7 @@ export interface SlackMessage {
 }
 
 export interface TextSegment {
-  kind: 'text' | 'user-mention' | 'channel-mention'
+  kind: 'text' | 'user-mention' | 'channel-mention' | 'link'
   value: string
 }
 

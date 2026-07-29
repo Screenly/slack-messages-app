@@ -22,7 +22,7 @@ settings:
     optional: false
     help_text:
       properties:
-        help_text: Slack channel ID to display messages from (e.g. C0123ABCDEF).
+        help_text: Select the Slack channel to display messages from.
         type: oauth:slack:channel_id
       schema_version: 1
   display_errors:
