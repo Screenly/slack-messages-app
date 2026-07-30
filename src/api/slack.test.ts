@@ -5,7 +5,7 @@ mock.module('@screenly/edge-apps', () => ({
 }))
 
 const { getConversationInfo, getWorkspaceUrl, AuthError } =
-  await import('./api')
+  await import('./slack')
 const { BackendServerError } = await import('./errors')
 
 const ACCESS_TOKEN = 'abc'

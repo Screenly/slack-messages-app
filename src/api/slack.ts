@@ -1,6 +1,6 @@
 import { getCorsProxyUrl } from '@screenly/edge-apps'
 import { BackendServerError } from './errors'
-import type { SlackMessage } from './types'
+import type { SlackMessage } from '../types'
 
 const SLACK_API_BASE = 'https://slack.com/api'
 const AUTH_ERROR_CODES = new Set([
