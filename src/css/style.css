@@ -25,4 +25,8 @@
   .mention-link {
     @apply text-[#7c3085] underline;
   }
+
+  .qr-code svg {
+    @apply block w-full h-full;
+  }
 }

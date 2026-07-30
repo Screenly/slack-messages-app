@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
-import type { RuntimeState } from './credentials'
+import type { RuntimeState } from './api/credentials'
 import type { AppSettings } from './settings'
 
 const fetchLatestAnnouncement = mock(async () => ({
@@ -8,18 +8,32 @@ const fetchLatestAnnouncement = mock(async () => ({
   hasFetchError: false,
   fetchError: null as Error | null,
 }))
-
-mock.module('./messages', () => ({ fetchLatestAnnouncement }))
+const getChannelLink = mock(async () => null as string | null)
+const toRenderableAnnouncement = mock(async () => ({
+  ts: '1',
+  textSegments: [],
+  senderName: 'Someone',
+  channelName: 'general',
+  permalink: null,
+}))
+mock.module('./api/messages', () => ({
+  fetchLatestAnnouncement,
+  getChannelLink,
+  toRenderableAnnouncement,
+}))
 
 const readCachedContent = mock(() => null as { result: unknown } | null)
 const writeCachedContent = mock(() => {})
-mock.module('./persistent-cache', () => ({
+mock.module('./api/persistent-cache', () => ({
   readCachedContent,
   writeCachedContent,
 }))
 
-const { createAnnouncementLoader } = await import('./announcement-loader')
-const { BackendServerError } = await import('./errors')
+const renderAnnouncement = mock(() => {})
+mock.module('./templates', () => ({ renderAnnouncement }))
+
+const { refreshAnnouncement } = await import('./announcement')
+const { BackendServerError } = await import('./api/errors')
 
 const settings: AppSettings = {
   channelId: 'C123',
@@ -29,6 +43,13 @@ const settings: AppSettings = {
   showQrCode: true,
 }
 
+const tokenRuntimeState = (): RuntimeState => ({
+  accessToken: 'token',
+  credentialError: null,
+})
+
+const noopResolveSenderName = mock(async () => '')
+
 beforeEach(() => {
   fetchLatestAnnouncement.mockReset()
   fetchLatestAnnouncement.mockResolvedValue({
@@ -37,13 +58,17 @@ beforeEach(() => {
     hasFetchError: false,
     fetchError: null,
   })
+  getChannelLink.mockClear()
+  getChannelLink.mockResolvedValue(null)
+  toRenderableAnnouncement.mockClear()
   readCachedContent.mockClear()
   readCachedContent.mockReturnValue(null)
   writeCachedContent.mockClear()
+  renderAnnouncement.mockClear()
 })
 
-describe('createAnnouncementLoader', () => {
-  test('returns the credential error when no token is available', async () => {
+describe('refreshAnnouncement credentials', () => {
+  test('throws the credential error when no token is available', async () => {
     const credentialError = new Error('Credentials unavailable.')
     const getRuntimeState = (): RuntimeState => ({
       accessToken: null,
@@ -51,18 +76,20 @@ describe('createAnnouncementLoader', () => {
     })
     const refreshToken = mock(async () => {})
 
-    const load = createAnnouncementLoader(
-      settings,
-      getRuntimeState,
-      refreshToken
-    )
-
-    expect(await load()).toEqual({ error: credentialError })
+    await expect(
+      refreshAnnouncement(
+        settings,
+        getRuntimeState,
+        refreshToken,
+        noopResolveSenderName
+      )
+    ).rejects.toBe(credentialError)
     expect(fetchLatestAnnouncement).not.toHaveBeenCalled()
     expect(refreshToken).not.toHaveBeenCalled()
+    expect(renderAnnouncement).not.toHaveBeenCalled()
   })
 
-  test('skips instead of erroring when no token is available and the credential error is a skippable backend outage', async () => {
+  test('does not throw or render when the credential error is a skippable backend outage', async () => {
     const credentialError = new BackendServerError('network down')
     const getRuntimeState = (): RuntimeState => ({
       accessToken: null,
@@ -70,45 +97,41 @@ describe('createAnnouncementLoader', () => {
     })
     const refreshToken = mock(async () => {})
 
-    const load = createAnnouncementLoader(
+    await refreshAnnouncement(
       settings,
       getRuntimeState,
-      refreshToken
+      refreshToken,
+      noopResolveSenderName
     )
 
-    expect(await load()).toEqual({ skipped: true })
+    expect(renderAnnouncement).not.toHaveBeenCalled()
   })
 
-  test('loads an announcement with the current token', async () => {
+  test('renders the empty state when there is no message with the current token', async () => {
     const getRuntimeState = (): RuntimeState => ({
       accessToken: 'current-token',
       credentialError: null,
     })
     const refreshToken = mock(async () => {})
 
-    const load = createAnnouncementLoader(
+    await refreshAnnouncement(
       settings,
       getRuntimeState,
-      refreshToken
+      refreshToken,
+      noopResolveSenderName
     )
 
-    expect(await load()).toEqual({
-      accessToken: 'current-token',
-      result: null,
-      authError: false,
-      hasFetchError: false,
-      fetchError: null,
-    })
     expect(fetchLatestAnnouncement).toHaveBeenCalledWith(
       'current-token',
       'C123',
       true
     )
     expect(refreshToken).not.toHaveBeenCalled()
+    expect(renderAnnouncement).toHaveBeenCalledWith(null, true, true, null)
   })
 })
 
-describe('createAnnouncementLoader token refresh', () => {
+describe('refreshAnnouncement token refresh', () => {
   test('uses a fresh token when the current token is expired', async () => {
     let accessToken = 'expired-token'
     const getRuntimeState = (): RuntimeState => ({
@@ -132,26 +155,24 @@ describe('createAnnouncementLoader token refresh', () => {
         fetchError: null,
       })
 
-    const load = createAnnouncementLoader(
+    await refreshAnnouncement(
       settings,
       getRuntimeState,
-      refreshToken
+      refreshToken,
+      noopResolveSenderName
     )
 
-    expect(await load()).toMatchObject({
-      accessToken: 'fresh-token',
-      authError: false,
-    })
     expect(refreshToken).toHaveBeenCalledTimes(1)
     expect(fetchLatestAnnouncement).toHaveBeenLastCalledWith(
       'fresh-token',
       'C123',
       true
     )
+    expect(renderAnnouncement).toHaveBeenCalledWith(null, true, true, null)
   })
 })
 
-describe('createAnnouncementLoader credential retry recovery', () => {
+describe('refreshAnnouncement credential retry recovery', () => {
   test('proceeds to retry the fetch when a failed refresh still recovers a token from its own cache', async () => {
     let accessToken: string | null = 'expired-token'
     const getRuntimeState = (): RuntimeState => ({
@@ -176,22 +197,23 @@ describe('createAnnouncementLoader credential retry recovery', () => {
         fetchError: null,
       })
 
-    const load = createAnnouncementLoader(
+    await refreshAnnouncement(
       settings,
       getRuntimeState,
-      refreshToken
+      refreshToken,
+      noopResolveSenderName
     )
 
-    expect(await load()).toMatchObject({ accessToken: 'cached-token' })
     expect(fetchLatestAnnouncement).toHaveBeenLastCalledWith(
       'cached-token',
       'C123',
       true
     )
+    expect(renderAnnouncement).toHaveBeenCalledWith(null, true, true, null)
   })
 })
 
-describe('createAnnouncementLoader credential retry with no recovery', () => {
+describe('refreshAnnouncement credential retry with no recovery', () => {
   function makeGetRuntimeState() {
     let callCount = 0
     return (): RuntimeState => {
@@ -202,7 +224,7 @@ describe('createAnnouncementLoader credential retry with no recovery', () => {
     }
   }
 
-  test('skips instead of erroring when a refresh fails with a skippable backend outage', async () => {
+  test('does not throw or render when a refresh fails with a skippable backend outage', async () => {
     const refreshToken = mock(async () => {
       throw new BackendServerError('network down')
     })
@@ -213,13 +235,14 @@ describe('createAnnouncementLoader credential retry with no recovery', () => {
       fetchError: null,
     })
 
-    const load = createAnnouncementLoader(
+    await refreshAnnouncement(
       settings,
       makeGetRuntimeState(),
-      refreshToken
+      refreshToken,
+      noopResolveSenderName
     )
 
-    expect(await load()).toEqual({ skipped: true })
+    expect(renderAnnouncement).not.toHaveBeenCalled()
   })
 
   test('surfaces the error when a refresh fails with a non-backend error', async () => {
@@ -234,34 +257,31 @@ describe('createAnnouncementLoader credential retry with no recovery', () => {
       fetchError: null,
     })
 
-    const load = createAnnouncementLoader(
-      settings,
-      makeGetRuntimeState(),
-      refreshToken
-    )
-
-    expect(await load()).toEqual({ error: refreshError })
+    await expect(
+      refreshAnnouncement(
+        settings,
+        makeGetRuntimeState(),
+        refreshToken,
+        noopResolveSenderName
+      )
+    ).rejects.toBe(refreshError)
+    expect(renderAnnouncement).not.toHaveBeenCalled()
   })
 })
 
 describe('content caching on success', () => {
   test('writes the fetched result to cache, including a legitimately empty channel', async () => {
-    const getRuntimeState = (): RuntimeState => ({
-      accessToken: 'token',
-      credentialError: null,
-    })
-
-    const load = createAnnouncementLoader(
+    await refreshAnnouncement(
       settings,
-      getRuntimeState,
-      mock(async () => {})
+      tokenRuntimeState,
+      mock(async () => {}),
+      noopResolveSenderName
     )
-    await load()
 
     expect(writeCachedContent).toHaveBeenCalledWith('C123', { result: null })
   })
 
-  test('writes a real message to cache', async () => {
+  test('writes a real message to cache and renders it', async () => {
     const message = {
       message: { ts: '1', user: 'U1', username: null, text: 'hi' },
       permalink: null,
@@ -273,35 +293,26 @@ describe('content caching on success', () => {
       hasFetchError: false,
       fetchError: null,
     })
-    const getRuntimeState = (): RuntimeState => ({
-      accessToken: 'token',
-      credentialError: null,
-    })
 
-    const load = createAnnouncementLoader(
+    await refreshAnnouncement(
       settings,
-      getRuntimeState,
-      mock(async () => {})
+      tokenRuntimeState,
+      mock(async () => {}),
+      noopResolveSenderName
     )
-    await load()
 
     expect(writeCachedContent).toHaveBeenCalledWith('C123', {
       result: message,
     })
+    expect(toRenderableAnnouncement).toHaveBeenCalledWith(
+      'token',
+      message,
+      true,
+      noopResolveSenderName
+    )
+    expect(renderAnnouncement).toHaveBeenCalled()
   })
 })
-
-function makeContentFailoverLoader() {
-  const getRuntimeState = (): RuntimeState => ({
-    accessToken: 'token',
-    credentialError: null,
-  })
-  return createAnnouncementLoader(
-    settings,
-    getRuntimeState,
-    mock(async () => {})
-  )
-}
 
 describe('content failover on a skippable backend outage', () => {
   test('falls back to cached content when there is a cache hit', async () => {
@@ -318,18 +329,23 @@ describe('content failover on a skippable backend outage', () => {
       fetchError: new BackendServerError('down'),
     })
 
-    const load = makeContentFailoverLoader()
+    await refreshAnnouncement(
+      settings,
+      tokenRuntimeState,
+      mock(async () => {}),
+      noopResolveSenderName
+    )
 
-    expect(await load()).toEqual({
-      accessToken: 'token',
-      result: cachedMessage,
-      authError: false,
-      hasFetchError: false,
-      fetchError: null,
-    })
+    expect(toRenderableAnnouncement).toHaveBeenCalledWith(
+      'token',
+      cachedMessage,
+      true,
+      noopResolveSenderName
+    )
+    expect(renderAnnouncement).toHaveBeenCalled()
   })
 
-  test('skips instead of erroring when there is nothing cached', async () => {
+  test('does not throw or render when there is nothing cached', async () => {
     readCachedContent.mockReturnValue(null)
     fetchLatestAnnouncement.mockResolvedValue({
       result: null,
@@ -338,9 +354,14 @@ describe('content failover on a skippable backend outage', () => {
       fetchError: new BackendServerError('down'),
     })
 
-    const load = makeContentFailoverLoader()
+    await refreshAnnouncement(
+      settings,
+      tokenRuntimeState,
+      mock(async () => {}),
+      noopResolveSenderName
+    )
 
-    expect(await load()).toEqual({ skipped: true })
+    expect(renderAnnouncement).not.toHaveBeenCalled()
   })
 })
 
@@ -353,52 +374,42 @@ describe('content failover does not apply', () => {
         channelName: 'general',
       },
     })
-    const fetchError = new BackendServerError('down')
     fetchLatestAnnouncement.mockResolvedValue({
       result: null,
       authError: false,
       hasFetchError: true,
-      fetchError,
+      fetchError: new BackendServerError('down'),
     })
 
-    const getRuntimeState = (): RuntimeState => ({
-      accessToken: 'token',
-      credentialError: null,
-    })
-    const load = createAnnouncementLoader(
-      { ...settings, displayErrors: true },
-      getRuntimeState,
-      mock(async () => {})
-    )
-
-    expect(await load()).toEqual({
-      accessToken: 'token',
-      result: null,
-      authError: false,
-      hasFetchError: true,
-      fetchError,
-    })
+    await expect(
+      refreshAnnouncement(
+        { ...settings, displayErrors: true },
+        tokenRuntimeState,
+        mock(async () => {}),
+        noopResolveSenderName
+      )
+    ).rejects.toThrow('No channel messages could be loaded.')
     expect(readCachedContent).not.toHaveBeenCalled()
+    expect(renderAnnouncement).not.toHaveBeenCalled()
   })
 
   test('surfaces the error instead of using the cache for a non-backend error', async () => {
-    const fetchError = new Error('some unrelated failure')
     fetchLatestAnnouncement.mockResolvedValue({
       result: null,
       authError: false,
       hasFetchError: true,
-      fetchError,
+      fetchError: new Error('some unrelated failure'),
     })
 
-    const load = makeContentFailoverLoader()
-
-    expect(await load()).toEqual({
-      accessToken: 'token',
-      result: null,
-      authError: false,
-      hasFetchError: true,
-      fetchError,
-    })
+    await expect(
+      refreshAnnouncement(
+        settings,
+        tokenRuntimeState,
+        mock(async () => {}),
+        noopResolveSenderName
+      )
+    ).rejects.toThrow('No channel messages could be loaded.')
     expect(readCachedContent).not.toHaveBeenCalled()
+    expect(renderAnnouncement).not.toHaveBeenCalled()
   })
 })

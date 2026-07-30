@@ -20,12 +20,9 @@ mock.module('./persistent-cache', () => ({
   writeCachedCredentials,
 }))
 
-const { createCredentialManager } = await import('./credentials')
+const { refreshToken, getRuntimeState, resetCredentialsForTesting } =
+  await import('./credentials')
 const { BackendServerError } = await import('./errors')
-
-function makeManager(displayErrors = false) {
-  return createCredentialManager(displayErrors)
-}
 
 function succeedOnce() {
   getCredentials.mockImplementationOnce(async () => ({
@@ -41,6 +38,7 @@ function failWith(message: string) {
 }
 
 beforeEach(() => {
+  resetCredentialsForTesting()
   getCredentials.mockClear()
   reportError.mockClear()
   readCachedCredentials.mockClear()
@@ -48,11 +46,10 @@ beforeEach(() => {
   writeCachedCredentials.mockClear()
 })
 
-describe('createCredentialManager', () => {
+describe('refreshToken', () => {
   test('stores the access token on success', async () => {
     succeedOnce()
-    const { refreshToken, getRuntimeState } = makeManager()
-    await refreshToken()
+    await refreshToken(false)
 
     expect(getRuntimeState()).toEqual({
       accessToken: 'abc',
@@ -62,9 +59,9 @@ describe('createCredentialManager', () => {
   })
 
   test('throws and reports when the backend responds without a token', async () => {
-    const { refreshToken, getRuntimeState } = makeManager()
-
-    await expect(refreshToken()).rejects.toThrow('No access token available.')
+    await expect(refreshToken(false)).rejects.toThrow(
+      'No access token available.'
+    )
     expect(getRuntimeState().credentialError?.message).toBe(
       'No access token available.'
     )
@@ -73,17 +70,16 @@ describe('createCredentialManager', () => {
 
   test('reports only the first of repeated failures, then again after a success', async () => {
     failWith('network down')
-    const { refreshToken } = makeManager()
 
-    await expect(refreshToken()).rejects.toThrow('network down')
-    await expect(refreshToken()).rejects.toThrow('network down')
+    await expect(refreshToken(false)).rejects.toThrow('network down')
+    await expect(refreshToken(false)).rejects.toThrow('network down')
     expect(reportError).toHaveBeenCalledTimes(1)
 
     succeedOnce()
-    await refreshToken()
+    await refreshToken(false)
 
     failWith('boom')
-    await expect(refreshToken()).rejects.toThrow('boom')
+    await expect(refreshToken(false)).rejects.toThrow('boom')
     expect(reportError).toHaveBeenCalledTimes(2)
   })
 })
@@ -91,8 +87,7 @@ describe('createCredentialManager', () => {
 describe('credential caching', () => {
   test('writes the fresh token to cache on a successful refresh', async () => {
     succeedOnce()
-    const { refreshToken } = makeManager()
-    await refreshToken()
+    await refreshToken(false)
 
     expect(writeCachedCredentials).toHaveBeenCalledWith({
       accessToken: 'abc',
@@ -102,9 +97,8 @@ describe('credential caching', () => {
   test('repopulates state from cache on a skippable backend outage', async () => {
     readCachedCredentials.mockReturnValue({ accessToken: 'cached-token' })
     failWith('network down')
-    const { refreshToken, getRuntimeState } = makeManager(false)
 
-    await expect(refreshToken()).rejects.toBeInstanceOf(BackendServerError)
+    await expect(refreshToken(false)).rejects.toBeInstanceOf(BackendServerError)
 
     expect(getRuntimeState().accessToken).toBe('cached-token')
   })
@@ -112,9 +106,8 @@ describe('credential caching', () => {
   test('does not consult the cache when display_errors is on', async () => {
     readCachedCredentials.mockReturnValue({ accessToken: 'cached-token' })
     failWith('network down')
-    const { refreshToken, getRuntimeState } = makeManager(true)
 
-    await expect(refreshToken()).rejects.toBeInstanceOf(BackendServerError)
+    await expect(refreshToken(true)).rejects.toBeInstanceOf(BackendServerError)
 
     expect(readCachedCredentials).not.toHaveBeenCalled()
     expect(getRuntimeState().accessToken).toBeNull()
@@ -126,9 +119,10 @@ describe('credential caching', () => {
       token: '',
       metadata: undefined,
     }))
-    const { refreshToken, getRuntimeState } = makeManager(false)
 
-    await expect(refreshToken()).rejects.toThrow('No access token available.')
+    await expect(refreshToken(false)).rejects.toThrow(
+      'No access token available.'
+    )
 
     expect(readCachedCredentials).not.toHaveBeenCalled()
     expect(getRuntimeState().accessToken).toBeNull()
@@ -137,12 +131,11 @@ describe('credential caching', () => {
   test('does not re-read the cache once state already has a token', async () => {
     readCachedCredentials.mockReturnValue({ accessToken: 'cached-token' })
     failWith('network down')
-    const { refreshToken } = makeManager(false)
 
-    await expect(refreshToken()).rejects.toBeInstanceOf(BackendServerError)
+    await expect(refreshToken(false)).rejects.toBeInstanceOf(BackendServerError)
     expect(readCachedCredentials).toHaveBeenCalledTimes(1)
 
-    await expect(refreshToken()).rejects.toBeInstanceOf(BackendServerError)
+    await expect(refreshToken(false)).rejects.toBeInstanceOf(BackendServerError)
     expect(readCachedCredentials).toHaveBeenCalledTimes(1)
   })
 })

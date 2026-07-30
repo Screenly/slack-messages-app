@@ -1,5 +1,4 @@
 import { getSettingWithDefault } from '@screenly/edge-apps'
-import { parseChannelId } from './content'
 
 export interface AppSettings {
   channelId: string
@@ -11,6 +10,16 @@ export interface AppSettings {
 
 function getBooleanSetting(key: string, defaultValue: boolean): boolean {
   return getSettingWithDefault<string>(key, String(defaultValue)) === 'true'
+}
+
+export function parseChannelId(rawChannelId: string): string {
+  const channelId = rawChannelId.trim()
+
+  if (channelId.length === 0) {
+    throw new Error('No Slack channel ID configured.')
+  }
+
+  return channelId
 }
 
 export function getAppSettings(): AppSettings {

@@ -5,13 +5,13 @@ import {
   getConversationInfo,
   getMessagePermalink,
   getWorkspaceUrl,
-} from './api'
+} from './slack'
 import { createBoundedCache } from './cache'
 import { parseMrkdwn } from './mrkdwn'
 import type { SenderNameResolver } from './users'
-import type { SlackMessage, RenderableAnnouncement } from './types'
+import type { SlackMessage, RenderableAnnouncement } from '../types'
 
-// getConversationHistory() (src/api.ts) filters out subtype 'channel_join'
+// getConversationHistory() (src/api/slack.ts) filters out subtype 'channel_join'
 // events, so fetch a small buffer beyond the single message we render in
 // case the most recent event is a join rather than an actual message.
 const HISTORY_FETCH_LIMIT = 10

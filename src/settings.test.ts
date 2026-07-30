@@ -1,5 +1,10 @@
-import { describe, expect, test } from 'bun:test'
-import { parseChannelId } from './content'
+import { describe, expect, mock, test } from 'bun:test'
+
+mock.module('@screenly/edge-apps', () => ({
+  getSettingWithDefault: (_key: string, defaultValue: unknown) => defaultValue,
+}))
+
+const { parseChannelId } = await import('./settings')
 
 describe('parseChannelId', () => {
   test('returns the channel id', () => {
