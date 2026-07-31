@@ -3,6 +3,7 @@ import {
   SLACK_AUTH_URL,
   SLACK_BOT_SCOPES,
   SLACK_TOKEN_URL,
+  SLACK_USER_SCOPES,
 } from './constants'
 import type { StoredTokens } from './db'
 
@@ -14,6 +15,11 @@ interface SlackTokenResponse {
   team?: { id: string; name: string }
   expires_in?: number
   refresh_token?: string
+  authed_user?: {
+    id: string
+    access_token?: string
+    scope?: string
+  }
 }
 
 export function createAuthorizationUrl(
@@ -24,6 +30,7 @@ export function createAuthorizationUrl(
     client_id: clientId,
     redirect_uri: REDIRECT_URI,
     scope: SLACK_BOT_SCOPES,
+    user_scope: SLACK_USER_SCOPES,
     state,
   })
   return `${SLACK_AUTH_URL}?${params.toString()}`
@@ -69,5 +76,7 @@ export function toStoredTokens(
     expires_at: response.expires_in
       ? Math.floor(Date.now() / 1000) + response.expires_in
       : null,
+    user_access_token: response.authed_user?.access_token ?? null,
+    user_scope: response.authed_user?.scope ?? null,
   }
 }
