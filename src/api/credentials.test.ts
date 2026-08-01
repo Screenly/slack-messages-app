@@ -6,10 +6,14 @@ const getCredentials = mock(async () => ({
   token: '',
   metadata: undefined as Record<string, unknown> | undefined,
 }))
+const readEdgeAppCache = mock(() => null as { accessToken: string } | null)
+const writeEdgeAppCache = mock(() => {})
 
 mock.module('@screenly/edge-apps', () => ({
   getCredentials,
   getSettingWithDefault,
+  readEdgeAppCache,
+  writeEdgeAppCache,
 }))
 
 // `credentials.ts` reads `access_token` at module load time, so the global
@@ -18,13 +22,6 @@ setupScreenlyMock()
 
 const reportError = mock(() => {})
 mock.module('@screenly/edge-apps/utils', () => ({ reportError }))
-
-const readEdgeAppCache = mock(() => null as { accessToken: string } | null)
-const writeEdgeAppCache = mock(() => {})
-mock.module('./edge-app-cache', () => ({
-  readEdgeAppCache,
-  writeEdgeAppCache,
-}))
 
 const { refreshToken, getRuntimeState, resetCredentialsForTesting } =
   await import('./credentials')

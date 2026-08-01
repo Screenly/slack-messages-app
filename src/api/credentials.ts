@@ -1,7 +1,11 @@
-import { getCredentials, getSettingWithDefault } from '@screenly/edge-apps'
+import {
+  getCredentials,
+  getSettingWithDefault,
+  readEdgeAppCache,
+  writeEdgeAppCache,
+} from '@screenly/edge-apps'
 import { reportError } from '@screenly/edge-apps/utils'
 import { CACHE_NAMESPACE } from '../constants'
-import { readEdgeAppCache, writeEdgeAppCache } from './edge-app-cache'
 
 export type RuntimeState = {
   accessToken: string | null

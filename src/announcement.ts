@@ -1,5 +1,8 @@
-import { getSettingWithDefault } from '@screenly/edge-apps'
-import { readEdgeAppCache, writeEdgeAppCache } from './api/edge-app-cache'
+import {
+  getSettingWithDefault,
+  readEdgeAppCache,
+  writeEdgeAppCache,
+} from '@screenly/edge-apps'
 import type { RuntimeState } from './api/credentials'
 import {
   fetchLatestAnnouncement,

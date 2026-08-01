@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { setupScreenlyMock } from '@screenly/edge-apps/test'
+import { getSettingWithDefault } from '@screenly/edge-apps'
 import type { RuntimeState } from './api/credentials'
 
 const fetchLatestAnnouncement = mock(async () => ({
@@ -24,7 +25,8 @@ mock.module('./api/messages', () => ({
 
 const readEdgeAppCache = mock(() => null as { result: unknown } | null)
 const writeEdgeAppCache = mock(() => {})
-mock.module('./api/edge-app-cache', () => ({
+mock.module('@screenly/edge-apps', () => ({
+  getSettingWithDefault,
   readEdgeAppCache,
   writeEdgeAppCache,
 }))
