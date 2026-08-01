@@ -1,18 +1,23 @@
 import { getSettingWithDefault } from '@screenly/edge-apps'
+import { readEdgeAppCache, writeEdgeAppCache } from './api/edge-app-cache'
 import type { RuntimeState } from './api/credentials'
 import {
   fetchLatestAnnouncement,
   getChannelLink,
   toRenderableAnnouncement,
 } from './api/messages'
-import { readCachedContent, writeCachedContent } from './api/persistent-cache'
+import type { FetchedMessage } from './api/messages'
 import type { SenderNameResolver } from './api/users'
 import {
+  CACHE_NAMESPACE,
   DEFAULT_DISPLAY_ERRORS,
   DEFAULT_SHOW_QR_CODE,
-  DEFAULT_SHOW_SENDER_NAMES,
 } from './constants'
 import { renderAnnouncement } from './templates'
+
+interface CachedContent {
+  result: FetchedMessage | null
+}
 
 type FetchResponse = Awaited<ReturnType<typeof fetchLatestAnnouncement>>
 
@@ -32,24 +37,12 @@ type AnnouncementLoadResult =
   AnnouncementLoad | AnnouncementLoadError | AnnouncementLoadSkipped
 export type RefreshToken = () => Promise<void>
 
-export function parseChannelId(rawChannelId: string): string {
-  const channelId = rawChannelId.trim()
-
-  if (channelId.length === 0) {
-    throw new Error('No Slack channel ID configured.')
-  }
-
-  return channelId
-}
-
 function normalizeError(error: unknown): Error {
   return error instanceof Error
     ? error
     : new Error('Session expired. Please re-authenticate.')
 }
 
-// `credentials.ts` already tries its own persistent-cache fallback before
-// this is reached, so by this point there's genuinely no token available.
 function handleMissingCredentials(
   credentialError: Error | null,
   displayErrors: boolean
@@ -59,13 +52,15 @@ function handleMissingCredentials(
 }
 
 function resolveContent(
-  channelId: string,
   accessToken: string,
   displayErrors: boolean,
   response: FetchResponse
 ): AnnouncementLoadResult {
+  const channelId = getSettingWithDefault('channel_id', '')
+  const cacheKey = `content:${channelId}`
+
   if (!response.hasFetchError) {
-    writeCachedContent(channelId, { result: response.result })
+    writeEdgeAppCache(CACHE_NAMESPACE, cacheKey, { result: response.result })
     return { accessToken, ...response }
   }
 
@@ -73,7 +68,7 @@ function resolveContent(
     return { accessToken, ...response }
   }
 
-  const cached = readCachedContent(channelId)
+  const cached = readEdgeAppCache<CachedContent>(CACHE_NAMESPACE, cacheKey)
   if (!cached) return { skipped: true }
 
   return {
@@ -86,9 +81,7 @@ function resolveContent(
 }
 
 async function loadAnnouncement(
-  channelId: string,
   displayErrors: boolean,
-  showQrCode: boolean,
   getRuntimeState: () => RuntimeState,
   refreshToken: RefreshToken
 ): Promise<AnnouncementLoadResult> {
@@ -98,13 +91,9 @@ async function loadAnnouncement(
     return handleMissingCredentials(runtimeState.credentialError, displayErrors)
   }
 
-  let response = await fetchLatestAnnouncement(
-    accessToken,
-    channelId,
-    showQrCode
-  )
+  let response = await fetchLatestAnnouncement(accessToken)
   if (!response.authError) {
-    return resolveContent(channelId, accessToken, displayErrors, response)
+    return resolveContent(accessToken, displayErrors, response)
   }
 
   let refreshError: unknown = null
@@ -120,26 +109,23 @@ async function loadAnnouncement(
       : { error: new Error('No access token.') }
   }
 
-  response = await fetchLatestAnnouncement(accessToken, channelId, showQrCode)
-  return resolveContent(channelId, accessToken, displayErrors, response)
+  response = await fetchLatestAnnouncement(accessToken)
+  return resolveContent(accessToken, displayErrors, response)
 }
 
 function renderAnnouncementContainer(
   announcement: Parameters<typeof renderAnnouncement>[0],
-  showSenderNames: boolean,
-  showQrCode: boolean,
   channelLink: string | null = null
 ): void {
-  renderAnnouncement(announcement, showSenderNames, showQrCode, channelLink)
+  renderAnnouncement(announcement, channelLink)
 }
 
 async function getEmptyStateChannelLink(
-  accessToken: string,
-  channelId: string,
-  showQrCode: boolean
+  accessToken: string
 ): Promise<string | null> {
+  const showQrCode = getSettingWithDefault('show_qr_code', DEFAULT_SHOW_QR_CODE)
   if (!showQrCode) return null
-  return getChannelLink(accessToken, channelId).catch(() => null)
+  return getChannelLink(accessToken).catch(() => null)
 }
 
 export async function refreshAnnouncement(
@@ -147,21 +133,13 @@ export async function refreshAnnouncement(
   refreshToken: RefreshToken,
   resolveSenderName: SenderNameResolver
 ): Promise<void> {
-  const channelId = parseChannelId(getSettingWithDefault('channel_id', ''))
   const displayErrors = getSettingWithDefault(
     'display_errors',
     DEFAULT_DISPLAY_ERRORS
   )
-  const showQrCode = getSettingWithDefault('show_qr_code', DEFAULT_SHOW_QR_CODE)
-  const showSenderNames = getSettingWithDefault(
-    'show_sender_names',
-    DEFAULT_SHOW_SENDER_NAMES
-  )
 
   const load = await loadAnnouncement(
-    channelId,
     displayErrors,
-    showQrCode,
     getRuntimeState,
     refreshToken
   )
@@ -177,20 +155,15 @@ export async function refreshAnnouncement(
   }
 
   if (!load.result) {
-    const channelLink = await getEmptyStateChannelLink(
-      load.accessToken,
-      channelId,
-      showQrCode
-    )
-    renderAnnouncementContainer(null, showSenderNames, showQrCode, channelLink)
+    const channelLink = await getEmptyStateChannelLink(load.accessToken)
+    renderAnnouncementContainer(null, channelLink)
     return
   }
 
   const announcement = await toRenderableAnnouncement(
     load.accessToken,
     load.result,
-    showSenderNames,
     resolveSenderName
   )
-  renderAnnouncementContainer(announcement, showSenderNames, showQrCode)
+  renderAnnouncementContainer(announcement)
 }

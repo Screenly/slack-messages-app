@@ -1,13 +1,15 @@
 import { getCredentials, getSettingWithDefault } from '@screenly/edge-apps'
 import { reportError } from '@screenly/edge-apps/utils'
-import {
-  readCachedCredentials,
-  writeCachedCredentials,
-} from './persistent-cache'
+import { CACHE_NAMESPACE } from '../constants'
+import { readEdgeAppCache, writeEdgeAppCache } from './edge-app-cache'
 
 export type RuntimeState = {
   accessToken: string | null
   credentialError: Error | null
+}
+
+interface CachedCredentials {
+  accessToken: string
 }
 
 let accessToken: string | null = getSettingWithDefault('access_token', null)
@@ -30,7 +32,9 @@ export async function refreshToken(): Promise<void> {
 
     accessToken = freshAccessToken
     credentialError = null
-    writeCachedCredentials({ accessToken: freshAccessToken })
+    writeEdgeAppCache(CACHE_NAMESPACE, 'credentials', {
+      accessToken: freshAccessToken,
+    })
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
     if (!credentialError) {
@@ -42,7 +46,10 @@ export async function refreshToken(): Promise<void> {
     // later failed refresh can't clobber good credentials with stale ones.
     const displayErrors = getSettingWithDefault('display_errors', false)
     if (!accessToken && !displayErrors) {
-      const cached = readCachedCredentials()
+      const cached = readEdgeAppCache<CachedCredentials>(
+        CACHE_NAMESPACE,
+        'credentials'
+      )
       if (cached) accessToken = cached.accessToken
     }
 

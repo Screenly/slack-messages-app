@@ -13,12 +13,10 @@ function emptyStateMainTemplate(): TemplateResult {
 }
 
 export function emptyStateCardTemplate(
-  showQrCode: boolean,
   channelLink: string | null
 ): TemplateResult {
   return announcementLayoutTemplate(
     emptyStateMainTemplate(),
-    showQrCode,
     channelLink,
     'View this channel on your phone'
   )

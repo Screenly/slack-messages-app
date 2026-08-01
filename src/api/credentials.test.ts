@@ -19,11 +19,11 @@ setupScreenlyMock()
 const reportError = mock(() => {})
 mock.module('@screenly/edge-apps/utils', () => ({ reportError }))
 
-const readCachedCredentials = mock(() => null as { accessToken: string } | null)
-const writeCachedCredentials = mock(() => {})
-mock.module('./persistent-cache', () => ({
-  readCachedCredentials,
-  writeCachedCredentials,
+const readEdgeAppCache = mock(() => null as { accessToken: string } | null)
+const writeEdgeAppCache = mock(() => {})
+mock.module('./edge-app-cache', () => ({
+  readEdgeAppCache,
+  writeEdgeAppCache,
 }))
 
 const { refreshToken, getRuntimeState, resetCredentialsForTesting } =
@@ -47,9 +47,9 @@ beforeEach(() => {
   resetCredentialsForTesting()
   getCredentials.mockClear()
   reportError.mockClear()
-  readCachedCredentials.mockClear()
-  readCachedCredentials.mockReturnValue(null)
-  writeCachedCredentials.mockClear()
+  readEdgeAppCache.mockClear()
+  readEdgeAppCache.mockReturnValue(null)
+  writeEdgeAppCache.mockClear()
 })
 
 describe('refreshToken', () => {
@@ -104,13 +104,15 @@ describe('credential caching', () => {
     succeedOnce()
     await refreshToken()
 
-    expect(writeCachedCredentials).toHaveBeenCalledWith({
-      accessToken: 'abc',
-    })
+    expect(writeEdgeAppCache).toHaveBeenCalledWith(
+      'slack-messages-app:v1',
+      'credentials',
+      { accessToken: 'abc' }
+    )
   })
 
   test('repopulates state from cache on a skippable backend outage, without throwing', async () => {
-    readCachedCredentials.mockReturnValue({ accessToken: 'cached-token' })
+    readEdgeAppCache.mockReturnValue({ accessToken: 'cached-token' })
     failWith('network down')
 
     await refreshToken()
@@ -119,18 +121,18 @@ describe('credential caching', () => {
   })
 
   test('does not consult the cache when display_errors is on', async () => {
-    readCachedCredentials.mockReturnValue({ accessToken: 'cached-token' })
+    readEdgeAppCache.mockReturnValue({ accessToken: 'cached-token' })
     failWith('network down')
     setupScreenlyMock({}, { display_errors: true })
 
     await expect(refreshToken()).rejects.toThrow(/network down/)
 
-    expect(readCachedCredentials).not.toHaveBeenCalled()
+    expect(readEdgeAppCache).not.toHaveBeenCalled()
     expect(getRuntimeState().accessToken).toBeNull()
   })
 
   test('falls back to the cache for an empty token too, since the skip decision ignores error type', async () => {
-    readCachedCredentials.mockReturnValue({ accessToken: 'cached-token' })
+    readEdgeAppCache.mockReturnValue({ accessToken: 'cached-token' })
     getCredentials.mockImplementation(async () => ({
       token: '',
       metadata: undefined,
@@ -138,18 +140,18 @@ describe('credential caching', () => {
 
     await refreshToken()
 
-    expect(readCachedCredentials).toHaveBeenCalled()
+    expect(readEdgeAppCache).toHaveBeenCalled()
     expect(getRuntimeState().accessToken).toBe('cached-token')
   })
 
   test('does not re-read the cache once state already has a token', async () => {
-    readCachedCredentials.mockReturnValue({ accessToken: 'cached-token' })
+    readEdgeAppCache.mockReturnValue({ accessToken: 'cached-token' })
     failWith('network down')
 
     await refreshToken()
-    expect(readCachedCredentials).toHaveBeenCalledTimes(1)
+    expect(readEdgeAppCache).toHaveBeenCalledTimes(1)
 
     await refreshToken()
-    expect(readCachedCredentials).toHaveBeenCalledTimes(1)
+    expect(readEdgeAppCache).toHaveBeenCalledTimes(1)
   })
 })

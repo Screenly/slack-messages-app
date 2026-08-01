@@ -4,13 +4,10 @@ import { announcementLayoutTemplate } from './announcement-layout'
 import { mainAnnouncementTemplate } from './main-announcement'
 
 export function announcementCardTemplate(
-  announcement: RenderableAnnouncement,
-  showSenderName: boolean,
-  showQrCode: boolean
+  announcement: RenderableAnnouncement
 ): TemplateResult {
   return announcementLayoutTemplate(
-    mainAnnouncementTemplate(announcement, showSenderName),
-    showQrCode,
+    mainAnnouncementTemplate(announcement),
     announcement.permalink,
     'View this message on your phone'
   )

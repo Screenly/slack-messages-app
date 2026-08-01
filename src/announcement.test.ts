@@ -22,17 +22,17 @@ mock.module('./api/messages', () => ({
   toRenderableAnnouncement,
 }))
 
-const readCachedContent = mock(() => null as { result: unknown } | null)
-const writeCachedContent = mock(() => {})
-mock.module('./api/persistent-cache', () => ({
-  readCachedContent,
-  writeCachedContent,
+const readEdgeAppCache = mock(() => null as { result: unknown } | null)
+const writeEdgeAppCache = mock(() => {})
+mock.module('./api/edge-app-cache', () => ({
+  readEdgeAppCache,
+  writeEdgeAppCache,
 }))
 
 const renderAnnouncement = mock(() => {})
 mock.module('./templates', () => ({ renderAnnouncement }))
 
-const { refreshAnnouncement, parseChannelId } = await import('./announcement')
+const { refreshAnnouncement } = await import('./announcement')
 
 const tokenRuntimeState = (): RuntimeState => ({
   accessToken: 'token',
@@ -52,32 +52,12 @@ beforeEach(() => {
   getChannelLink.mockClear()
   getChannelLink.mockResolvedValue(null)
   toRenderableAnnouncement.mockClear()
-  readCachedContent.mockClear()
-  readCachedContent.mockReturnValue(null)
-  writeCachedContent.mockClear()
+  readEdgeAppCache.mockClear()
+  readEdgeAppCache.mockReturnValue(null)
+  writeEdgeAppCache.mockClear()
   renderAnnouncement.mockClear()
 
-  setupScreenlyMock({}, { channel_id: 'C123' })
-})
-
-describe('parseChannelId', () => {
-  test('returns the channel id', () => {
-    expect(parseChannelId('C0123ABCDEF')).toEqual('C0123ABCDEF')
-  })
-
-  test('trims whitespace around the id', () => {
-    expect(parseChannelId(' C0123ABCDEF ')).toEqual('C0123ABCDEF')
-  })
-
-  test('throws when no channel id is configured', () => {
-    expect(() => parseChannelId('')).toThrow('No Slack channel ID configured.')
-  })
-
-  test('throws when only whitespace is configured', () => {
-    expect(() => parseChannelId('   ')).toThrow(
-      'No Slack channel ID configured.'
-    )
-  })
+  setupScreenlyMock()
 })
 
 describe('refreshAnnouncement credentials', () => {
@@ -88,7 +68,7 @@ describe('refreshAnnouncement credentials', () => {
       credentialError,
     })
     const refreshToken = mock(async () => {})
-    setupScreenlyMock({}, { channel_id: 'C123', display_errors: true })
+    setupScreenlyMock({}, { display_errors: true })
 
     await expect(
       refreshAnnouncement(getRuntimeState, refreshToken, noopResolveSenderName)
@@ -128,13 +108,9 @@ describe('refreshAnnouncement credentials', () => {
       noopResolveSenderName
     )
 
-    expect(fetchLatestAnnouncement).toHaveBeenCalledWith(
-      'current-token',
-      'C123',
-      true
-    )
+    expect(fetchLatestAnnouncement).toHaveBeenCalledWith('current-token')
     expect(refreshToken).not.toHaveBeenCalled()
-    expect(renderAnnouncement).toHaveBeenCalledWith(null, true, true, null)
+    expect(renderAnnouncement).toHaveBeenCalledWith(null, null)
   })
 })
 
@@ -169,12 +145,8 @@ describe('refreshAnnouncement token refresh', () => {
     )
 
     expect(refreshToken).toHaveBeenCalledTimes(1)
-    expect(fetchLatestAnnouncement).toHaveBeenLastCalledWith(
-      'fresh-token',
-      'C123',
-      true
-    )
-    expect(renderAnnouncement).toHaveBeenCalledWith(null, true, true, null)
+    expect(fetchLatestAnnouncement).toHaveBeenLastCalledWith('fresh-token')
+    expect(renderAnnouncement).toHaveBeenCalledWith(null, null)
   })
 })
 
@@ -209,12 +181,8 @@ describe('refreshAnnouncement credential retry recovery', () => {
       noopResolveSenderName
     )
 
-    expect(fetchLatestAnnouncement).toHaveBeenLastCalledWith(
-      'cached-token',
-      'C123',
-      true
-    )
-    expect(renderAnnouncement).toHaveBeenCalledWith(null, true, true, null)
+    expect(fetchLatestAnnouncement).toHaveBeenLastCalledWith('cached-token')
+    expect(renderAnnouncement).toHaveBeenCalledWith(null, null)
   })
 })
 
@@ -260,7 +228,7 @@ describe('refreshAnnouncement credential retry with no recovery', () => {
       hasFetchError: false,
       fetchError: null,
     })
-    setupScreenlyMock({}, { channel_id: 'C123', display_errors: true })
+    setupScreenlyMock({}, { display_errors: true })
 
     await expect(
       refreshAnnouncement(
@@ -281,7 +249,11 @@ describe('content caching on success', () => {
       noopResolveSenderName
     )
 
-    expect(writeCachedContent).toHaveBeenCalledWith('C123', { result: null })
+    expect(writeEdgeAppCache).toHaveBeenCalledWith(
+      'slack-messages-app:v1',
+      'content:',
+      { result: null }
+    )
   })
 
   test('writes a real message to cache and renders it', async () => {
@@ -303,13 +275,14 @@ describe('content caching on success', () => {
       noopResolveSenderName
     )
 
-    expect(writeCachedContent).toHaveBeenCalledWith('C123', {
-      result: message,
-    })
+    expect(writeEdgeAppCache).toHaveBeenCalledWith(
+      'slack-messages-app:v1',
+      'content:',
+      { result: message }
+    )
     expect(toRenderableAnnouncement).toHaveBeenCalledWith(
       'token',
       message,
-      true,
       noopResolveSenderName
     )
     expect(renderAnnouncement).toHaveBeenCalled()
@@ -323,7 +296,7 @@ describe('content failover when display_errors is off', () => {
       permalink: null,
       channelName: 'general',
     }
-    readCachedContent.mockReturnValue({ result: cachedMessage })
+    readEdgeAppCache.mockReturnValue({ result: cachedMessage })
     fetchLatestAnnouncement.mockResolvedValue({
       result: null,
       authError: false,
@@ -340,14 +313,13 @@ describe('content failover when display_errors is off', () => {
     expect(toRenderableAnnouncement).toHaveBeenCalledWith(
       'token',
       cachedMessage,
-      true,
       noopResolveSenderName
     )
     expect(renderAnnouncement).toHaveBeenCalled()
   })
 
   test('does not throw or render when there is nothing cached', async () => {
-    readCachedContent.mockReturnValue(null)
+    readEdgeAppCache.mockReturnValue(null)
     fetchLatestAnnouncement.mockResolvedValue({
       result: null,
       authError: false,
@@ -378,14 +350,14 @@ describe('content failover when display_errors is off', () => {
       noopResolveSenderName
     )
 
-    expect(readCachedContent).toHaveBeenCalled()
+    expect(readEdgeAppCache).toHaveBeenCalled()
     expect(renderAnnouncement).not.toHaveBeenCalled()
   })
 })
 
 describe('content failover does not apply', () => {
   test('surfaces the error instead of using the cache when display_errors is on', async () => {
-    readCachedContent.mockReturnValue({
+    readEdgeAppCache.mockReturnValue({
       result: {
         message: { ts: '1', user: null, username: 'bot', text: 'cached' },
         permalink: null,
@@ -398,7 +370,7 @@ describe('content failover does not apply', () => {
       hasFetchError: true,
       fetchError: new Error('down'),
     })
-    setupScreenlyMock({}, { channel_id: 'C123', display_errors: true })
+    setupScreenlyMock({}, { display_errors: true })
 
     await expect(
       refreshAnnouncement(
@@ -407,7 +379,7 @@ describe('content failover does not apply', () => {
         noopResolveSenderName
       )
     ).rejects.toThrow('No channel messages could be loaded.')
-    expect(readCachedContent).not.toHaveBeenCalled()
+    expect(readEdgeAppCache).not.toHaveBeenCalled()
     expect(renderAnnouncement).not.toHaveBeenCalled()
   })
 })

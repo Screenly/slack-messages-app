@@ -4,12 +4,11 @@ import { announcementHeaderTemplate } from './announcement-header'
 import { announcementTextTemplate } from './announcement-text'
 
 export function mainAnnouncementTemplate(
-  announcement: RenderableAnnouncement,
-  showSenderName: boolean
+  announcement: RenderableAnnouncement
 ): TemplateResult {
   return html`
     <div class="announcement-main gap-7">
-      ${announcementHeaderTemplate(announcement, showSenderName)}
+      ${announcementHeaderTemplate(announcement)}
       ${announcementTextTemplate(announcement.textSegments)}
     </div>
   `

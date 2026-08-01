@@ -1,4 +1,6 @@
+import { getSettingWithDefault } from '@screenly/edge-apps'
 import { html, nothing, type TemplateResult } from 'lit-html'
+import { DEFAULT_SHOW_SENDER_NAMES } from '../constants'
 import type { RenderableAnnouncement } from '../types'
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -20,9 +22,12 @@ function getInitials(name: string): string {
 }
 
 export function announcementHeaderTemplate(
-  announcement: RenderableAnnouncement,
-  showSenderName: boolean
+  announcement: RenderableAnnouncement
 ): TemplateResult {
+  const showSenderName = getSettingWithDefault(
+    'show_sender_names',
+    DEFAULT_SHOW_SENDER_NAMES
+  )
   const subline = [
     announcement.channelName && `#${announcement.channelName}`,
     formatTimestamp(announcement.ts),

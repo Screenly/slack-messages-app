@@ -5,8 +5,6 @@ import { emptyStateCardTemplate } from './empty-state'
 
 export function renderAnnouncement(
   announcement: RenderableAnnouncement | null,
-  showSenderName: boolean,
-  showQrCode: boolean,
   channelLink: string | null = null
 ): void {
   const container = document.getElementById('announcement-container')
@@ -14,8 +12,8 @@ export function renderAnnouncement(
 
   render(
     announcement
-      ? announcementCardTemplate(announcement, showSenderName, showQrCode)
-      : emptyStateCardTemplate(showQrCode, channelLink),
+      ? announcementCardTemplate(announcement)
+      : emptyStateCardTemplate(channelLink),
     container
   )
   container.style.display = 'flex'
