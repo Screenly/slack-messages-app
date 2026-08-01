@@ -1,5 +1,4 @@
 import { getCorsProxyUrl } from '@screenly/edge-apps'
-import { BackendServerError } from './errors'
 import type { SlackMessage } from '../types'
 
 const SLACK_API_BASE = 'https://slack.com/api'
@@ -16,8 +15,6 @@ function apiUrl(path: string): string {
   return `${getCorsProxyUrl()}/${SLACK_API_BASE}${path}`
 }
 
-// Normalizes network-level failures (offline, DNS, timeout) to a
-// `BackendServerError`, same as the 5xx/429 handling in `parseSlackResponse`.
 async function performRequest(
   url: string,
   init?: RequestInit
@@ -25,15 +22,16 @@ async function performRequest(
   try {
     return await fetch(url, init)
   } catch (err) {
-    throw new BackendServerError(
-      `Slack could not be reached (${err instanceof Error ? err.message : String(err)}).`
+    throw new Error(
+      `Slack could not be reached (${err instanceof Error ? err.message : String(err)}).`,
+      { cause: err }
     )
   }
 }
 
 async function parseSlackResponse<T>(res: Response, path: string): Promise<T> {
   if (res.status >= 500 || res.status === 429) {
-    throw new BackendServerError(`Slack's API had a problem (${res.status}).`)
+    throw new Error(`Slack's API had a problem (${res.status}).`)
   }
   if (!res.ok) throw new Error(`Slack API error ${res.status}: ${path}`)
 

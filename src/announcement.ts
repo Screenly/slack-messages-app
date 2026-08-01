@@ -1,5 +1,5 @@
+import { getSettingWithDefault } from '@screenly/edge-apps'
 import type { RuntimeState } from './api/credentials'
-import { shouldSkipBackendError } from './api/errors'
 import {
   fetchLatestAnnouncement,
   getChannelLink,
@@ -7,7 +7,11 @@ import {
 } from './api/messages'
 import { readCachedContent, writeCachedContent } from './api/persistent-cache'
 import type { SenderNameResolver } from './api/users'
-import type { AppSettings } from './settings'
+import {
+  DEFAULT_DISPLAY_ERRORS,
+  DEFAULT_SHOW_QR_CODE,
+  DEFAULT_SHOW_SENDER_NAMES,
+} from './constants'
 import { renderAnnouncement } from './templates'
 
 type FetchResponse = Awaited<ReturnType<typeof fetchLatestAnnouncement>>
@@ -20,8 +24,6 @@ interface AnnouncementLoadError {
   error: Error
 }
 
-// Nothing to show and nothing to fall back to: leave the screen as-is
-// rather than flashing an error for a hiccup.
 interface AnnouncementLoadSkipped {
   skipped: true
 }
@@ -29,6 +31,16 @@ interface AnnouncementLoadSkipped {
 type AnnouncementLoadResult =
   AnnouncementLoad | AnnouncementLoadError | AnnouncementLoadSkipped
 export type RefreshToken = () => Promise<void>
+
+export function parseChannelId(rawChannelId: string): string {
+  const channelId = rawChannelId.trim()
+
+  if (channelId.length === 0) {
+    throw new Error('No Slack channel ID configured.')
+  }
+
+  return channelId
+}
 
 function normalizeError(error: unknown): Error {
   return error instanceof Error
@@ -42,10 +54,8 @@ function handleMissingCredentials(
   credentialError: Error | null,
   displayErrors: boolean
 ): AnnouncementLoadResult {
-  const error = credentialError ?? new Error('No access token available.')
-  return shouldSkipBackendError(error, displayErrors)
-    ? { skipped: true }
-    : { error }
+  if (!displayErrors) return { skipped: true }
+  return { error: credentialError ?? new Error('No access token available.') }
 }
 
 function resolveContent(
@@ -59,7 +69,7 @@ function resolveContent(
     return { accessToken, ...response }
   }
 
-  if (!shouldSkipBackendError(response.fetchError, displayErrors)) {
+  if (displayErrors) {
     return { accessToken, ...response }
   }
 
@@ -76,31 +86,25 @@ function resolveContent(
 }
 
 async function loadAnnouncement(
-  settings: AppSettings,
+  channelId: string,
+  displayErrors: boolean,
+  showQrCode: boolean,
   getRuntimeState: () => RuntimeState,
   refreshToken: RefreshToken
 ): Promise<AnnouncementLoadResult> {
   const runtimeState = getRuntimeState()
   let { accessToken } = runtimeState
   if (!accessToken) {
-    return handleMissingCredentials(
-      runtimeState.credentialError,
-      settings.displayErrors
-    )
+    return handleMissingCredentials(runtimeState.credentialError, displayErrors)
   }
 
   let response = await fetchLatestAnnouncement(
     accessToken,
-    settings.channelId,
-    settings.showQrCode
+    channelId,
+    showQrCode
   )
   if (!response.authError) {
-    return resolveContent(
-      settings.channelId,
-      accessToken,
-      settings.displayErrors,
-      response
-    )
+    return resolveContent(channelId, accessToken, displayErrors, response)
   }
 
   let refreshError: unknown = null
@@ -111,59 +115,56 @@ async function loadAnnouncement(
   }
   ;({ accessToken } = getRuntimeState())
   if (!accessToken) {
-    // `refreshToken()` may still have recovered a token from its own
-    // persistent-cache fallback despite rejecting (see credentials.ts),
-    // in which case `accessToken` above would be populated and this
-    // branch wouldn't run.
     return refreshError
-      ? handleMissingCredentials(
-          normalizeError(refreshError),
-          settings.displayErrors
-        )
+      ? handleMissingCredentials(normalizeError(refreshError), displayErrors)
       : { error: new Error('No access token.') }
   }
 
-  response = await fetchLatestAnnouncement(
-    accessToken,
-    settings.channelId,
-    settings.showQrCode
-  )
-  return resolveContent(
-    settings.channelId,
-    accessToken,
-    settings.displayErrors,
-    response
-  )
+  response = await fetchLatestAnnouncement(accessToken, channelId, showQrCode)
+  return resolveContent(channelId, accessToken, displayErrors, response)
 }
 
 function renderAnnouncementContainer(
   announcement: Parameters<typeof renderAnnouncement>[0],
-  settings: AppSettings,
+  showSenderNames: boolean,
+  showQrCode: boolean,
   channelLink: string | null = null
 ): void {
-  renderAnnouncement(
-    announcement,
-    settings.showSenderNames,
-    settings.showQrCode,
-    channelLink
-  )
+  renderAnnouncement(announcement, showSenderNames, showQrCode, channelLink)
 }
 
 async function getEmptyStateChannelLink(
   accessToken: string,
-  settings: AppSettings
+  channelId: string,
+  showQrCode: boolean
 ): Promise<string | null> {
-  if (!settings.showQrCode) return null
-  return getChannelLink(accessToken, settings.channelId).catch(() => null)
+  if (!showQrCode) return null
+  return getChannelLink(accessToken, channelId).catch(() => null)
 }
 
 export async function refreshAnnouncement(
-  settings: AppSettings,
   getRuntimeState: () => RuntimeState,
   refreshToken: RefreshToken,
   resolveSenderName: SenderNameResolver
 ): Promise<void> {
-  const load = await loadAnnouncement(settings, getRuntimeState, refreshToken)
+  const channelId = parseChannelId(getSettingWithDefault('channel_id', ''))
+  const displayErrors = getSettingWithDefault(
+    'display_errors',
+    DEFAULT_DISPLAY_ERRORS
+  )
+  const showQrCode = getSettingWithDefault('show_qr_code', DEFAULT_SHOW_QR_CODE)
+  const showSenderNames = getSettingWithDefault(
+    'show_sender_names',
+    DEFAULT_SHOW_SENDER_NAMES
+  )
+
+  const load = await loadAnnouncement(
+    channelId,
+    displayErrors,
+    showQrCode,
+    getRuntimeState,
+    refreshToken
+  )
 
   if ('skipped' in load) return
 
@@ -178,17 +179,18 @@ export async function refreshAnnouncement(
   if (!load.result) {
     const channelLink = await getEmptyStateChannelLink(
       load.accessToken,
-      settings
+      channelId,
+      showQrCode
     )
-    renderAnnouncementContainer(null, settings, channelLink)
+    renderAnnouncementContainer(null, showSenderNames, showQrCode, channelLink)
     return
   }
 
   const announcement = await toRenderableAnnouncement(
     load.accessToken,
     load.result,
-    settings.showSenderNames,
+    showSenderNames,
     resolveSenderName
   )
-  renderAnnouncementContainer(announcement, settings)
+  renderAnnouncementContainer(announcement, showSenderNames, showQrCode)
 }

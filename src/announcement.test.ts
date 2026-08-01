@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { setupScreenlyMock } from '@screenly/edge-apps/test'
 import type { RuntimeState } from './api/credentials'
-import type { AppSettings } from './settings'
 
 const fetchLatestAnnouncement = mock(async () => ({
   result: null,
@@ -32,16 +32,7 @@ mock.module('./api/persistent-cache', () => ({
 const renderAnnouncement = mock(() => {})
 mock.module('./templates', () => ({ renderAnnouncement }))
 
-const { refreshAnnouncement } = await import('./announcement')
-const { BackendServerError } = await import('./api/errors')
-
-const settings: AppSettings = {
-  channelId: 'C123',
-  displayErrors: false,
-  refreshInterval: 60,
-  showSenderNames: true,
-  showQrCode: true,
-}
+const { refreshAnnouncement, parseChannelId } = await import('./announcement')
 
 const tokenRuntimeState = (): RuntimeState => ({
   accessToken: 'token',
@@ -65,32 +56,50 @@ beforeEach(() => {
   readCachedContent.mockReturnValue(null)
   writeCachedContent.mockClear()
   renderAnnouncement.mockClear()
+
+  setupScreenlyMock({}, { channel_id: 'C123' })
+})
+
+describe('parseChannelId', () => {
+  test('returns the channel id', () => {
+    expect(parseChannelId('C0123ABCDEF')).toEqual('C0123ABCDEF')
+  })
+
+  test('trims whitespace around the id', () => {
+    expect(parseChannelId(' C0123ABCDEF ')).toEqual('C0123ABCDEF')
+  })
+
+  test('throws when no channel id is configured', () => {
+    expect(() => parseChannelId('')).toThrow('No Slack channel ID configured.')
+  })
+
+  test('throws when only whitespace is configured', () => {
+    expect(() => parseChannelId('   ')).toThrow(
+      'No Slack channel ID configured.'
+    )
+  })
 })
 
 describe('refreshAnnouncement credentials', () => {
-  test('throws the credential error when no token is available', async () => {
+  test('throws the credential error when no token is available and display_errors is on', async () => {
     const credentialError = new Error('Credentials unavailable.')
     const getRuntimeState = (): RuntimeState => ({
       accessToken: null,
       credentialError,
     })
     const refreshToken = mock(async () => {})
+    setupScreenlyMock({}, { channel_id: 'C123', display_errors: true })
 
     await expect(
-      refreshAnnouncement(
-        settings,
-        getRuntimeState,
-        refreshToken,
-        noopResolveSenderName
-      )
+      refreshAnnouncement(getRuntimeState, refreshToken, noopResolveSenderName)
     ).rejects.toBe(credentialError)
     expect(fetchLatestAnnouncement).not.toHaveBeenCalled()
     expect(refreshToken).not.toHaveBeenCalled()
     expect(renderAnnouncement).not.toHaveBeenCalled()
   })
 
-  test('does not throw or render when the credential error is a skippable backend outage', async () => {
-    const credentialError = new BackendServerError('network down')
+  test('does not throw or render when no token is available and display_errors is off, regardless of error type', async () => {
+    const credentialError = new Error('network down')
     const getRuntimeState = (): RuntimeState => ({
       accessToken: null,
       credentialError,
@@ -98,7 +107,6 @@ describe('refreshAnnouncement credentials', () => {
     const refreshToken = mock(async () => {})
 
     await refreshAnnouncement(
-      settings,
       getRuntimeState,
       refreshToken,
       noopResolveSenderName
@@ -115,7 +123,6 @@ describe('refreshAnnouncement credentials', () => {
     const refreshToken = mock(async () => {})
 
     await refreshAnnouncement(
-      settings,
       getRuntimeState,
       refreshToken,
       noopResolveSenderName
@@ -156,7 +163,6 @@ describe('refreshAnnouncement token refresh', () => {
       })
 
     await refreshAnnouncement(
-      settings,
       getRuntimeState,
       refreshToken,
       noopResolveSenderName
@@ -181,7 +187,7 @@ describe('refreshAnnouncement credential retry recovery', () => {
     })
     const refreshToken = mock(async () => {
       accessToken = 'cached-token'
-      throw new BackendServerError('network down')
+      throw new Error('network down')
     })
     fetchLatestAnnouncement
       .mockResolvedValueOnce({
@@ -198,7 +204,6 @@ describe('refreshAnnouncement credential retry recovery', () => {
       })
 
     await refreshAnnouncement(
-      settings,
       getRuntimeState,
       refreshToken,
       noopResolveSenderName
@@ -224,9 +229,9 @@ describe('refreshAnnouncement credential retry with no recovery', () => {
     }
   }
 
-  test('does not throw or render when a refresh fails with a skippable backend outage', async () => {
+  test('does not throw or render when a refresh fails and display_errors is off', async () => {
     const refreshToken = mock(async () => {
-      throw new BackendServerError('network down')
+      throw new Error('network down')
     })
     fetchLatestAnnouncement.mockResolvedValueOnce({
       result: null,
@@ -236,7 +241,6 @@ describe('refreshAnnouncement credential retry with no recovery', () => {
     })
 
     await refreshAnnouncement(
-      settings,
       makeGetRuntimeState(),
       refreshToken,
       noopResolveSenderName
@@ -245,7 +249,7 @@ describe('refreshAnnouncement credential retry with no recovery', () => {
     expect(renderAnnouncement).not.toHaveBeenCalled()
   })
 
-  test('surfaces the error when a refresh fails with a non-backend error', async () => {
+  test('surfaces the error when a refresh fails and display_errors is on', async () => {
     const refreshError = new Error('Session expired. Please re-authenticate.')
     const refreshToken = mock(async () => {
       throw refreshError
@@ -256,10 +260,10 @@ describe('refreshAnnouncement credential retry with no recovery', () => {
       hasFetchError: false,
       fetchError: null,
     })
+    setupScreenlyMock({}, { channel_id: 'C123', display_errors: true })
 
     await expect(
       refreshAnnouncement(
-        settings,
         makeGetRuntimeState(),
         refreshToken,
         noopResolveSenderName
@@ -272,7 +276,6 @@ describe('refreshAnnouncement credential retry with no recovery', () => {
 describe('content caching on success', () => {
   test('writes the fetched result to cache, including a legitimately empty channel', async () => {
     await refreshAnnouncement(
-      settings,
       tokenRuntimeState,
       mock(async () => {}),
       noopResolveSenderName
@@ -295,7 +298,6 @@ describe('content caching on success', () => {
     })
 
     await refreshAnnouncement(
-      settings,
       tokenRuntimeState,
       mock(async () => {}),
       noopResolveSenderName
@@ -314,7 +316,7 @@ describe('content caching on success', () => {
   })
 })
 
-describe('content failover on a skippable backend outage', () => {
+describe('content failover when display_errors is off', () => {
   test('falls back to cached content when there is a cache hit', async () => {
     const cachedMessage = {
       message: { ts: '1', user: 'U1', username: null, text: 'cached' },
@@ -326,11 +328,10 @@ describe('content failover on a skippable backend outage', () => {
       result: null,
       authError: false,
       hasFetchError: true,
-      fetchError: new BackendServerError('down'),
+      fetchError: new Error('down'),
     })
 
     await refreshAnnouncement(
-      settings,
       tokenRuntimeState,
       mock(async () => {}),
       noopResolveSenderName
@@ -351,16 +352,33 @@ describe('content failover on a skippable backend outage', () => {
       result: null,
       authError: false,
       hasFetchError: true,
-      fetchError: new BackendServerError('down'),
+      fetchError: new Error('down'),
     })
 
     await refreshAnnouncement(
-      settings,
       tokenRuntimeState,
       mock(async () => {}),
       noopResolveSenderName
     )
 
+    expect(renderAnnouncement).not.toHaveBeenCalled()
+  })
+
+  test('consults the cache for a non-backend error too, aborting silently since nothing is cached', async () => {
+    fetchLatestAnnouncement.mockResolvedValue({
+      result: null,
+      authError: false,
+      hasFetchError: true,
+      fetchError: new Error('some unrelated failure'),
+    })
+
+    await refreshAnnouncement(
+      tokenRuntimeState,
+      mock(async () => {}),
+      noopResolveSenderName
+    )
+
+    expect(readCachedContent).toHaveBeenCalled()
     expect(renderAnnouncement).not.toHaveBeenCalled()
   })
 })
@@ -378,32 +396,12 @@ describe('content failover does not apply', () => {
       result: null,
       authError: false,
       hasFetchError: true,
-      fetchError: new BackendServerError('down'),
+      fetchError: new Error('down'),
     })
+    setupScreenlyMock({}, { channel_id: 'C123', display_errors: true })
 
     await expect(
       refreshAnnouncement(
-        { ...settings, displayErrors: true },
-        tokenRuntimeState,
-        mock(async () => {}),
-        noopResolveSenderName
-      )
-    ).rejects.toThrow('No channel messages could be loaded.')
-    expect(readCachedContent).not.toHaveBeenCalled()
-    expect(renderAnnouncement).not.toHaveBeenCalled()
-  })
-
-  test('surfaces the error instead of using the cache for a non-backend error', async () => {
-    fetchLatestAnnouncement.mockResolvedValue({
-      result: null,
-      authError: false,
-      hasFetchError: true,
-      fetchError: new Error('some unrelated failure'),
-    })
-
-    await expect(
-      refreshAnnouncement(
-        settings,
         tokenRuntimeState,
         mock(async () => {}),
         noopResolveSenderName

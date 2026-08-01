@@ -1,5 +1,3 @@
-// No TTL: a cached value is only ever read after a genuine fetch failure,
-// so staleness is bounded by how often fetches succeed, not by a clock.
 import type { FetchedMessage } from './messages'
 
 const CACHE_PREFIX = 'slack-messages-app:v1:'

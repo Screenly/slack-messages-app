@@ -1,4 +1,6 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
+import { setupScreenlyMock } from '@screenly/edge-apps/test'
+import { getSettingWithDefault } from '@screenly/edge-apps'
 
 const getCredentials = mock(async () => ({
   token: '',
@@ -7,8 +9,12 @@ const getCredentials = mock(async () => ({
 
 mock.module('@screenly/edge-apps', () => ({
   getCredentials,
-  getSettingWithDefault: (_key: string, defaultValue: unknown) => defaultValue,
+  getSettingWithDefault,
 }))
+
+// `credentials.ts` reads `access_token` at module load time, so the global
+// `screenly` mock must exist before it's imported below.
+setupScreenlyMock()
 
 const reportError = mock(() => {})
 mock.module('@screenly/edge-apps/utils', () => ({ reportError }))
@@ -22,7 +28,6 @@ mock.module('./persistent-cache', () => ({
 
 const { refreshToken, getRuntimeState, resetCredentialsForTesting } =
   await import('./credentials')
-const { BackendServerError } = await import('./errors')
 
 function succeedOnce() {
   getCredentials.mockImplementationOnce(async () => ({
@@ -38,6 +43,7 @@ function failWith(message: string) {
 }
 
 beforeEach(() => {
+  setupScreenlyMock()
   resetCredentialsForTesting()
   getCredentials.mockClear()
   reportError.mockClear()
@@ -49,7 +55,7 @@ beforeEach(() => {
 describe('refreshToken', () => {
   test('stores the access token on success', async () => {
     succeedOnce()
-    await refreshToken(false)
+    await refreshToken()
 
     expect(getRuntimeState()).toEqual({
       accessToken: 'abc',
@@ -59,9 +65,7 @@ describe('refreshToken', () => {
   })
 
   test('throws and reports when the backend responds without a token', async () => {
-    await expect(refreshToken(false)).rejects.toThrow(
-      'No access token available.'
-    )
+    await expect(refreshToken()).rejects.toThrow('No access token available.')
     expect(getRuntimeState().credentialError?.message).toBe(
       'No access token available.'
     )
@@ -71,34 +75,45 @@ describe('refreshToken', () => {
   test('reports only the first of repeated failures, then again after a success', async () => {
     failWith('network down')
 
-    await expect(refreshToken(false)).rejects.toThrow('network down')
-    await expect(refreshToken(false)).rejects.toThrow('network down')
+    await expect(refreshToken()).rejects.toThrow('network down')
+    await expect(refreshToken()).rejects.toThrow('network down')
     expect(reportError).toHaveBeenCalledTimes(1)
 
     succeedOnce()
-    await refreshToken(false)
+    await refreshToken()
 
     failWith('boom')
-    await expect(refreshToken(false)).rejects.toThrow('boom')
+    await refreshToken()
+    expect(getRuntimeState().credentialError?.message).toContain('boom')
     expect(reportError).toHaveBeenCalledTimes(2)
+  })
+
+  test('does not reject a failure that occurs while a usable accessToken is still held', async () => {
+    succeedOnce()
+    await refreshToken()
+
+    failWith('boom')
+    await expect(refreshToken()).resolves.toBeUndefined()
+    expect(getRuntimeState().accessToken).toBe('abc')
+    expect(getRuntimeState().credentialError?.message).toContain('boom')
   })
 })
 
 describe('credential caching', () => {
   test('writes the fresh token to cache on a successful refresh', async () => {
     succeedOnce()
-    await refreshToken(false)
+    await refreshToken()
 
     expect(writeCachedCredentials).toHaveBeenCalledWith({
       accessToken: 'abc',
     })
   })
 
-  test('repopulates state from cache on a skippable backend outage', async () => {
+  test('repopulates state from cache on a skippable backend outage, without throwing', async () => {
     readCachedCredentials.mockReturnValue({ accessToken: 'cached-token' })
     failWith('network down')
 
-    await expect(refreshToken(false)).rejects.toBeInstanceOf(BackendServerError)
+    await refreshToken()
 
     expect(getRuntimeState().accessToken).toBe('cached-token')
   })
@@ -106,36 +121,35 @@ describe('credential caching', () => {
   test('does not consult the cache when display_errors is on', async () => {
     readCachedCredentials.mockReturnValue({ accessToken: 'cached-token' })
     failWith('network down')
+    setupScreenlyMock({}, { display_errors: true })
 
-    await expect(refreshToken(true)).rejects.toBeInstanceOf(BackendServerError)
+    await expect(refreshToken()).rejects.toThrow(/network down/)
 
     expect(readCachedCredentials).not.toHaveBeenCalled()
     expect(getRuntimeState().accessToken).toBeNull()
   })
 
-  test('does not consult the cache for a non-backend error', async () => {
+  test('falls back to the cache for an empty token too, since the skip decision ignores error type', async () => {
     readCachedCredentials.mockReturnValue({ accessToken: 'cached-token' })
     getCredentials.mockImplementation(async () => ({
       token: '',
       metadata: undefined,
     }))
 
-    await expect(refreshToken(false)).rejects.toThrow(
-      'No access token available.'
-    )
+    await refreshToken()
 
-    expect(readCachedCredentials).not.toHaveBeenCalled()
-    expect(getRuntimeState().accessToken).toBeNull()
+    expect(readCachedCredentials).toHaveBeenCalled()
+    expect(getRuntimeState().accessToken).toBe('cached-token')
   })
 
   test('does not re-read the cache once state already has a token', async () => {
     readCachedCredentials.mockReturnValue({ accessToken: 'cached-token' })
     failWith('network down')
 
-    await expect(refreshToken(false)).rejects.toBeInstanceOf(BackendServerError)
+    await refreshToken()
     expect(readCachedCredentials).toHaveBeenCalledTimes(1)
 
-    await expect(refreshToken(false)).rejects.toBeInstanceOf(BackendServerError)
+    await refreshToken()
     expect(readCachedCredentials).toHaveBeenCalledTimes(1)
   })
 })

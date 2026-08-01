@@ -1,6 +1,5 @@
 import { getCredentials, getSettingWithDefault } from '@screenly/edge-apps'
 import { reportError } from '@screenly/edge-apps/utils'
-import { BackendServerError, shouldSkipBackendError } from './errors'
 import {
   readCachedCredentials,
   writeCachedCredentials,
@@ -11,55 +10,45 @@ export type RuntimeState = {
   credentialError: Error | null
 }
 
-function initialAccessToken(): string | null {
-  return getSettingWithDefault('access_token', '') || null
-}
-
-let accessToken: string | null = initialAccessToken()
+let accessToken: string | null = getSettingWithDefault('access_token', null)
 let credentialError: Error | null = null
-let hasReportedCredentialError = false
 
-async function fetchToken(): Promise<string | undefined> {
+export async function refreshToken(): Promise<void> {
   try {
-    const { token } = await getCredentials()
-    return token
-  } catch (err) {
-    // Unreachable backend is transient, unlike an empty token (thrown
-    // below), which is a genuine config problem a cache wouldn't fix.
-    throw new BackendServerError(
-      `Slack credentials could not be reached (${err instanceof Error ? err.message : String(err)}).`
+    const { token: freshAccessToken } = await getCredentials().catch(
+      (err: unknown) => {
+        throw new Error(
+          `Slack credentials could not be reached (${err instanceof Error ? err.message : String(err)}).`,
+          { cause: err }
+        )
+      }
     )
-  }
-}
 
-export async function refreshToken(displayErrors: boolean): Promise<void> {
-  try {
-    const token = await fetchToken()
-
-    if (!token) {
+    if (!freshAccessToken) {
       throw new Error('No access token available.')
     }
 
-    accessToken = token
+    accessToken = freshAccessToken
     credentialError = null
-    hasReportedCredentialError = false
-    writeCachedCredentials({ accessToken: token })
+    writeCachedCredentials({ accessToken: freshAccessToken })
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
-    if (!hasReportedCredentialError) {
+    if (!credentialError) {
       reportError(error, { source: 'slack-credentials' })
-      hasReportedCredentialError = true
     }
     credentialError = error
 
     // Only fall back to the cache if we don't already hold a token, so a
     // later failed refresh can't clobber good credentials with stale ones.
-    if (!accessToken && shouldSkipBackendError(error, displayErrors)) {
+    const displayErrors = getSettingWithDefault('display_errors', false)
+    if (!accessToken && !displayErrors) {
       const cached = readCachedCredentials()
       if (cached) accessToken = cached.accessToken
     }
 
-    throw error
+    if (!accessToken) {
+      throw error
+    }
   }
 }
 
@@ -68,7 +57,6 @@ export function getRuntimeState(): RuntimeState {
 }
 
 export function resetCredentialsForTesting(): void {
-  accessToken = initialAccessToken()
+  accessToken = getSettingWithDefault('access_token', null)
   credentialError = null
-  hasReportedCredentialError = false
 }

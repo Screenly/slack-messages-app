@@ -1,6 +1,7 @@
 import './css/style.css'
 import '@screenly/edge-apps/components'
 import {
+  getSettingWithDefault,
   initTokenRefreshLoop,
   setupErrorHandling,
   signalReady,
@@ -9,7 +10,7 @@ import { setupSentry } from '@screenly/edge-apps/utils'
 import { getRuntimeState, refreshToken } from './api/credentials'
 import { resolveSenderName } from './api/users'
 import { refreshAnnouncement } from './announcement'
-import { getAppSettings } from './settings'
+import { DEFAULT_REFRESH_INTERVAL_SECONDS } from './constants'
 
 setupSentry('slack-messages', {
   'slack-messages': { screenName: screenly.metadata.screen_name },
@@ -18,21 +19,23 @@ setupSentry('slack-messages', {
 async function startApplication(): Promise<void> {
   setupErrorHandling()
 
-  const settings = getAppSettings()
-  const refresh = () => refreshToken(settings.displayErrors)
-
   const update = () =>
-    refreshAnnouncement(settings, getRuntimeState, refresh, resolveSenderName)
+    refreshAnnouncement(getRuntimeState, refreshToken, resolveSenderName)
 
   try {
-    await refresh()
+    await refreshToken()
   } catch (error) {
     console.warn('Failed to fetch initial credentials:', error)
   }
 
-  initTokenRefreshLoop(refresh)
+  initTokenRefreshLoop(refreshToken)
   await update()
   signalReady()
+
+  const refreshIntervalSeconds = getSettingWithDefault(
+    'refresh_interval',
+    DEFAULT_REFRESH_INTERVAL_SECONDS
+  )
 
   setInterval(async () => {
     try {
@@ -40,7 +43,7 @@ async function startApplication(): Promise<void> {
     } catch (error) {
       console.error('Refresh failed:', error)
     }
-  }, settings.refreshInterval * 1000)
+  }, refreshIntervalSeconds * 1000)
 }
 
 document.addEventListener('DOMContentLoaded', () => {

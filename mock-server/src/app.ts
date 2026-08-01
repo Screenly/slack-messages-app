@@ -100,9 +100,6 @@ function createCallbackHandler(
   }
 }
 
-// Prefers the user token when one was granted: it inherits the authorizing
-// person's own channel memberships, so reads don't require inviting the bot
-// into every channel. Falls back to the bot token otherwise.
 const serveAccessToken: RequestHandler = (_req, res) => {
   const tokens = loadTokens()
   if (!tokens) {
