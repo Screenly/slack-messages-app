@@ -108,9 +108,14 @@ const serveAccessToken: RequestHandler = (_req, res) => {
       .json({ error: 'No token stored. Please authenticate first.' })
     return
   }
+  const usingUserToken = Boolean(tokens.user_access_token)
   res.json({
-    token: tokens.access_token,
-    metadata: { scope: tokens.scope, team: tokens.team_name },
+    token: usingUserToken ? tokens.user_access_token : tokens.access_token,
+    metadata: {
+      scope: usingUserToken ? tokens.user_scope : tokens.scope,
+      team: tokens.team_name,
+      tokenType: usingUserToken ? 'user' : 'bot',
+    },
   })
 }
 

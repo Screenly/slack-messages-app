@@ -14,6 +14,16 @@ db.run(`
   )
 `)
 
+// `auth.db` may already exist from before the user-token POC; add the new
+// columns to it rather than requiring a fresh database.
+for (const column of ['user_access_token', 'user_scope']) {
+  try {
+    db.run(`ALTER TABLE tokens ADD COLUMN ${column} TEXT`)
+  } catch {
+    // Column already exists.
+  }
+}
+
 db.run(`
   CREATE TABLE IF NOT EXISTS oauth_state (
     id INTEGER PRIMARY KEY,
@@ -28,18 +38,24 @@ export interface StoredTokens {
   scope: string
   team_name: string
   expires_at: number | null
+  user_access_token: string | null
+  user_scope: string | null
 }
 
 export function saveTokens(tokens: StoredTokens): void {
   db.run('DELETE FROM tokens')
   db.run(
-    'INSERT INTO tokens (access_token, refresh_token, scope, team_name, expires_at) VALUES (?, ?, ?, ?, ?)',
+    `INSERT INTO tokens
+      (access_token, refresh_token, scope, team_name, expires_at, user_access_token, user_scope)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       tokens.access_token,
       tokens.refresh_token,
       tokens.scope,
       tokens.team_name,
       tokens.expires_at,
+      tokens.user_access_token,
+      tokens.user_scope,
     ]
   )
 }
@@ -48,7 +64,9 @@ export function loadTokens(): StoredTokens | null {
   return (
     db
       .query<StoredTokens, []>(
-        'SELECT access_token, refresh_token, scope, team_name, expires_at FROM tokens LIMIT 1'
+        `SELECT access_token, refresh_token, scope, team_name, expires_at,
+          user_access_token, user_scope
+          FROM tokens LIMIT 1`
       )
       .get() ?? null
   )

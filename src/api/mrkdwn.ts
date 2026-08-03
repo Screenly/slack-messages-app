@@ -1,4 +1,4 @@
-import type { TextSegment } from './types'
+import type { TextSegment } from '../types'
 
 export type UserMentionResolver = (userId: string) => Promise<string>
 export type ChannelMentionResolver = (channelId: string) => Promise<string>

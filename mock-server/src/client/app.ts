@@ -10,6 +10,7 @@ declare global {
 interface TokenData {
   access_token: string
   refresh_token: string
+  user_token: string
 }
 
 interface TokenViewerData {
@@ -35,6 +36,8 @@ document.addEventListener('alpine:init', () => {
         document.getElementById('data-access-token')!.textContent ?? '',
       refresh_token:
         document.getElementById('data-refresh-token')?.textContent ?? '',
+      user_token:
+        document.getElementById('data-user-access-token')?.textContent ?? '',
     },
     copyToken(key: string) {
       navigator.clipboard.writeText(

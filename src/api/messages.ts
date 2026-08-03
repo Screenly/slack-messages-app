@@ -1,17 +1,19 @@
+import { getSettingWithDefault } from '@screenly/edge-apps'
 import { reportError } from '@screenly/edge-apps/utils'
+import { DEFAULT_SHOW_QR_CODE, DEFAULT_SHOW_SENDER_NAMES } from '../constants'
 import {
   AuthError,
   getConversationHistory,
   getConversationInfo,
   getMessagePermalink,
   getWorkspaceUrl,
-} from './api'
-import { createBoundedCache } from './cache'
+} from './slack'
+import { createBoundedCache } from './bounded-cache'
 import { parseMrkdwn } from './mrkdwn'
 import type { SenderNameResolver } from './users'
-import type { SlackMessage, RenderableAnnouncement } from './types'
+import type { SlackMessage, RenderableAnnouncement } from '../types'
 
-// getConversationHistory() (src/api.ts) filters out subtype 'channel_join'
+// getConversationHistory() (src/api/slack.ts) filters out subtype 'channel_join'
 // events, so fetch a small buffer beyond the single message we render in
 // case the most recent event is a join rather than an actual message.
 const HISTORY_FETCH_LIMIT = 10
@@ -68,10 +70,9 @@ async function bestEffort<T>(
 }
 
 async function fetchLatestMessage(
-  accessToken: string,
-  channelId: string,
-  fetchPermalink: boolean
+  accessToken: string
 ): Promise<FetchedMessage | null> {
+  const channelId = getSettingWithDefault('channel_id', '')
   const messages = await getConversationHistory(
     accessToken,
     channelId,
@@ -80,7 +81,8 @@ async function fetchLatestMessage(
   const message = messages[0]
   if (!message) return null
 
-  const permalink = fetchPermalink
+  const showQrCode = getSettingWithDefault('show_qr_code', DEFAULT_SHOW_QR_CODE)
+  const permalink = showQrCode
     ? await bestEffort(
         () => getCachedPermalink(accessToken, channelId, message.ts),
         null,
@@ -99,22 +101,14 @@ async function fetchLatestMessage(
   return { message, permalink, channelName }
 }
 
-export async function fetchLatestAnnouncement(
-  accessToken: string,
-  channelId: string,
-  fetchPermalink: boolean
-): Promise<{
+export async function fetchLatestAnnouncement(accessToken: string): Promise<{
   result: FetchedMessage | null
   authError: boolean
   hasFetchError: boolean
   fetchError: Error | null
 }> {
   try {
-    const result = await fetchLatestMessage(
-      accessToken,
-      channelId,
-      fetchPermalink
-    )
+    const result = await fetchLatestMessage(accessToken)
     return { result, authError: false, hasFetchError: false, fetchError: null }
   } catch (err) {
     if (err instanceof AuthError) {
@@ -127,7 +121,10 @@ export async function fetchLatestAnnouncement(
     }
 
     const error = err instanceof Error ? err : new Error(String(err))
-    reportError(error, { source: 'slack-content', channelId })
+    reportError(error, {
+      source: 'slack-content',
+      channelId: getSettingWithDefault('channel_id', ''),
+    })
     return {
       result: null,
       authError: false,
@@ -138,9 +135,9 @@ export async function fetchLatestAnnouncement(
 }
 
 export async function getChannelLink(
-  accessToken: string,
-  channelId: string
+  accessToken: string
 ): Promise<string | null> {
+  const channelId = getSettingWithDefault('channel_id', '')
   return bestEffort(
     async () => {
       const workspaceUrl = await getCachedWorkspaceUrl(accessToken)
@@ -155,10 +152,13 @@ export async function getChannelLink(
 export async function toRenderableAnnouncement(
   accessToken: string,
   result: FetchedMessage,
-  showSenderNames: boolean,
   resolveSenderName: SenderNameResolver
 ): Promise<RenderableAnnouncement> {
   const { message, permalink, channelName } = result
+  const showSenderNames = getSettingWithDefault(
+    'show_sender_names',
+    DEFAULT_SHOW_SENDER_NAMES
+  )
   const [senderName, textSegments] = await Promise.all([
     showSenderNames && message.user
       ? resolveSenderName(accessToken, message.user)

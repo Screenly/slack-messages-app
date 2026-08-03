@@ -5,8 +5,7 @@ mock.module('@screenly/edge-apps', () => ({
 }))
 
 const { getConversationInfo, getWorkspaceUrl, AuthError } =
-  await import('./api')
-const { BackendServerError } = await import('./errors')
+  await import('./slack')
 
 const ACCESS_TOKEN = 'abc'
 const CHANNEL_ID = 'C123'
@@ -42,30 +41,30 @@ describe('getConversationInfo', () => {
     expect(result).toEqual({ id: CHANNEL_ID, name: 'general' })
   })
 
-  test('rejects with BackendServerError on a 5xx response', async () => {
+  test('rejects with an error on a 5xx response', async () => {
     fakeResponse(503, {})
 
-    await expect(
-      getConversationInfo(ACCESS_TOKEN, CHANNEL_ID)
-    ).rejects.toBeInstanceOf(BackendServerError)
+    await expect(getConversationInfo(ACCESS_TOKEN, CHANNEL_ID)).rejects.toThrow(
+      /had a problem \(503\)/
+    )
   })
 
-  test('rejects with BackendServerError on a 429 response', async () => {
+  test('rejects with an error on a 429 response', async () => {
     fakeResponse(429, {})
 
-    await expect(
-      getConversationInfo(ACCESS_TOKEN, CHANNEL_ID)
-    ).rejects.toBeInstanceOf(BackendServerError)
+    await expect(getConversationInfo(ACCESS_TOKEN, CHANNEL_ID)).rejects.toThrow(
+      /had a problem \(429\)/
+    )
   })
 
-  test('rejects with BackendServerError when the network request itself fails', async () => {
+  test('rejects with an error when the network request itself fails', async () => {
     stubFetch(async () => {
       throw new TypeError('Failed to fetch')
     })
 
-    await expect(
-      getConversationInfo(ACCESS_TOKEN, CHANNEL_ID)
-    ).rejects.toBeInstanceOf(BackendServerError)
+    await expect(getConversationInfo(ACCESS_TOKEN, CHANNEL_ID)).rejects.toThrow(
+      /could not be reached/
+    )
   })
 
   test('rejects with AuthError on an invalid_auth response', async () => {
@@ -86,13 +85,13 @@ describe('getConversationInfo', () => {
 })
 
 describe('getWorkspaceUrl', () => {
-  test('rejects with BackendServerError when the network request itself fails', async () => {
+  test('rejects with an error when the network request itself fails', async () => {
     stubFetch(async () => {
       throw new TypeError('Failed to fetch')
     })
 
-    await expect(getWorkspaceUrl(ACCESS_TOKEN)).rejects.toBeInstanceOf(
-      BackendServerError
+    await expect(getWorkspaceUrl(ACCESS_TOKEN)).rejects.toThrow(
+      /could not be reached/
     )
   })
 
