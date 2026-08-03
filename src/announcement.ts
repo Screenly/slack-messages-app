@@ -28,37 +28,32 @@ type AnnouncementLoad = FetchResponse & {
   accessToken: string
 }
 
-interface AnnouncementLoadError {
-  error: Error
-}
-
 interface AnnouncementLoadSkipped {
   skipped: true
 }
 
-type AnnouncementLoadResult =
-  AnnouncementLoad | AnnouncementLoadError | AnnouncementLoadSkipped
+type AnnouncementLoadResult = AnnouncementLoad | AnnouncementLoadSkipped
 export type RefreshToken = () => Promise<void>
 
-function normalizeError(error: unknown): Error {
-  return error instanceof Error
-    ? error
-    : new Error('Session expired. Please re-authenticate.')
-}
-
 function handleMissingCredentials(
-  credentialError: Error | null,
-  displayErrors: boolean
-): AnnouncementLoadResult {
+  credentialError: Error | null
+): AnnouncementLoadSkipped {
+  const displayErrors = getSettingWithDefault(
+    'display_errors',
+    DEFAULT_DISPLAY_ERRORS
+  )
   if (!displayErrors) return { skipped: true }
-  return { error: credentialError ?? new Error('No access token available.') }
+  throw credentialError ?? new Error('No access token available.')
 }
 
 function resolveContent(
   accessToken: string,
-  displayErrors: boolean,
   response: FetchResponse
 ): AnnouncementLoadResult {
+  const displayErrors = getSettingWithDefault(
+    'display_errors',
+    DEFAULT_DISPLAY_ERRORS
+  )
   const channelId = getSettingWithDefault('channel_id', '')
   const cacheKey = `content:${channelId}`
 
@@ -84,19 +79,18 @@ function resolveContent(
 }
 
 async function loadAnnouncement(
-  displayErrors: boolean,
   getRuntimeState: () => RuntimeState,
   refreshToken: RefreshToken
 ): Promise<AnnouncementLoadResult> {
   const runtimeState = getRuntimeState()
   let { accessToken } = runtimeState
   if (!accessToken) {
-    return handleMissingCredentials(runtimeState.credentialError, displayErrors)
+    return handleMissingCredentials(runtimeState.credentialError)
   }
 
   let response = await fetchLatestAnnouncement(accessToken)
   if (!response.authError) {
-    return resolveContent(accessToken, displayErrors, response)
+    return resolveContent(accessToken, response)
   }
 
   let refreshError: unknown = null
@@ -105,15 +99,19 @@ async function loadAnnouncement(
   } catch (error) {
     refreshError = error
   }
-  ;({ accessToken } = getRuntimeState())
-  if (!accessToken) {
-    return refreshError
-      ? handleMissingCredentials(normalizeError(refreshError), displayErrors)
-      : { error: new Error('No access token.') }
+
+  accessToken = getRuntimeState().accessToken
+  if (accessToken) {
+    response = await fetchLatestAnnouncement(accessToken)
+    return resolveContent(accessToken, response)
   }
 
-  response = await fetchLatestAnnouncement(accessToken)
-  return resolveContent(accessToken, displayErrors, response)
+  if (!refreshError) throw new Error('No access token.')
+  return handleMissingCredentials(
+    refreshError instanceof Error
+      ? refreshError
+      : new Error('Session expired. Please re-authenticate.')
+  )
 }
 
 function renderAnnouncementContainer(
@@ -136,22 +134,9 @@ export async function refreshAnnouncement(
   refreshToken: RefreshToken,
   resolveSenderName: SenderNameResolver
 ): Promise<void> {
-  const displayErrors = getSettingWithDefault(
-    'display_errors',
-    DEFAULT_DISPLAY_ERRORS
-  )
-
-  const load = await loadAnnouncement(
-    displayErrors,
-    getRuntimeState,
-    refreshToken
-  )
+  const load = await loadAnnouncement(getRuntimeState, refreshToken)
 
   if ('skipped' in load) return
-
-  if ('error' in load) {
-    throw load.error
-  }
 
   if (load.authError || load.hasFetchError) {
     throw new Error('No channel messages could be loaded.')
