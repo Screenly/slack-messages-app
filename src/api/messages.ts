@@ -8,7 +8,7 @@ import {
   getMessagePermalink,
   getWorkspaceUrl,
 } from './slack'
-import { createBoundedCache } from './cache'
+import { createBoundedCache } from './bounded-cache'
 import { parseMrkdwn } from './mrkdwn'
 import type { SenderNameResolver } from './users'
 import type { SlackMessage, RenderableAnnouncement } from '../types'
