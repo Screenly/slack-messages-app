@@ -1,7 +1,7 @@
 ---
 syntax: manifest_v1
 description: Display the latest message from a Slack channel, full screen, on your Screenly screens
-icon: https://playground.srly.io/edge-apps/icons/slack-messages.svg
+icon: https://playground.srly.io/edge-apps/icons/slack.svg
 author: Screenly, Inc.
 categories:
   - Communication
