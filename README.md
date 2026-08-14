@@ -35,6 +35,8 @@ settings:
   access_token: 'xoxb-your-bot-token'
   channel_id: 'C0123ABCDEF'
   display_errors: 'false'
+  override_locale: 'en'
+  override_timezone: ''
   refresh_interval: '60'
   show_qr_code: 'true'
   show_sender_names: 'true'
@@ -96,6 +98,8 @@ screenly edge-app instance create
 | `show_qr_code`      | string | No       | Show a QR code linking to the message on Slack (`true`/`false`). Default: `true`                                                                                                   |
 | `show_sender_names` | string | No       | Resolve and display each message's sender name (`true`/`false`). Default: `true`                                                                                                   |
 | `sentry_dsn`        | secret | No       | Sentry DSN for reporting credential and content-load errors. Global setting — leave empty to disable.                                                                              |
+
+`override_locale` and `override_timezone` apply to both the header clock/date and the Slack message timestamp, so they stay on the same clock. Leave `override_timezone` blank to use the screen's location. The header shows the current time; the card shows when that message was sent.
 
 ## Authentication
 
