@@ -37,6 +37,26 @@ settings:
         help_text: For debugging purposes to display errors on the screen.
         type: boolean
       schema_version: 1
+  override_locale:
+    type: string
+    default_value: en
+    title: Override Locale
+    optional: true
+    help_text:
+      properties:
+        help_text: Override the default locale with a supported BCP 47 language tag (e.g., en, fr, de). Defaults to English if not specified.
+        type: string
+      schema_version: 1
+  override_timezone:
+    type: string
+    default_value: ''
+    title: Override Timezone
+    optional: true
+    help_text:
+      properties:
+        help_text: Override the default timezone with a supported IANA timezone identifier (e.g., Europe/London, America/New_York). Defaults to the system timezone if left blank.
+        type: string
+      schema_version: 1
   refresh_interval:
     type: string
     default_value: '60'
