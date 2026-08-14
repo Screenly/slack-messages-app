@@ -44,7 +44,10 @@ settings:
     optional: true
     help_text:
       properties:
-        help_text: Override the default locale with a supported BCP 47 language tag (e.g., en, fr, de). Defaults to English if not specified.
+        advanced: true
+        help_text: |
+          Override the default locale with a supported language code (e.g., en, fr, de). Defaults to English if not specified.
+          You can find the available locales here: https://momentjs.com/
         type: string
       schema_version: 1
   override_timezone:
@@ -54,7 +57,8 @@ settings:
     optional: true
     help_text:
       properties:
-        help_text: Override the default timezone with a supported IANA timezone identifier (e.g., Europe/London, America/New_York). Defaults to the system timezone if left blank.
+        advanced: true
+        help_text: Override the default timezone with a supported timezone identifier (e.g., Europe/London, America/New_York). Defaults to the system timezone if left blank.
         type: string
       schema_version: 1
   refresh_interval:
