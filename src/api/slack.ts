@@ -10,6 +10,7 @@ const AUTH_ERROR_CODES = new Set([
 ])
 
 export class AuthError extends Error {}
+export class NotInChannelError extends Error {}
 
 function apiUrl(path: string): string {
   return `${getCorsProxyUrl()}/${SLACK_API_BASE}${path}`
@@ -39,6 +40,9 @@ async function parseSlackResponse<T>(res: Response, path: string): Promise<T> {
   if (!data.ok) {
     if (data.error && AUTH_ERROR_CODES.has(data.error)) {
       throw new AuthError(`Slack auth error: ${data.error}`)
+    }
+    if (data.error === 'not_in_channel') {
+      throw new NotInChannelError(`Slack API error: ${data.error} (${path})`)
     }
     throw new Error(`Slack API error: ${data.error ?? 'unknown'} (${path})`)
   }

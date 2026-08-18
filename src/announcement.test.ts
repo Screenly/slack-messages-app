@@ -7,6 +7,7 @@ const fetchLatestAnnouncement = mock(async () => ({
   result: null,
   authError: false,
   hasFetchError: false,
+  notInChannel: false,
   fetchError: null as Error | null,
 }))
 const getChannelLink = mock(async () => null as string | null)
@@ -49,6 +50,7 @@ beforeEach(() => {
     result: null,
     authError: false,
     hasFetchError: false,
+    notInChannel: false,
     fetchError: null,
   })
   getChannelLink.mockClear()
@@ -112,7 +114,7 @@ describe('refreshAnnouncement credentials', () => {
 
     expect(fetchLatestAnnouncement).toHaveBeenCalledWith('current-token')
     expect(refreshToken).not.toHaveBeenCalled()
-    expect(renderAnnouncement).toHaveBeenCalledWith(null, null)
+    expect(renderAnnouncement).toHaveBeenCalledWith(null, null, false)
   })
 })
 
@@ -131,12 +133,14 @@ describe('refreshAnnouncement token refresh', () => {
         result: null,
         authError: true,
         hasFetchError: false,
+        notInChannel: false,
         fetchError: null,
       })
       .mockResolvedValueOnce({
         result: null,
         authError: false,
         hasFetchError: false,
+        notInChannel: false,
         fetchError: null,
       })
 
@@ -148,7 +152,7 @@ describe('refreshAnnouncement token refresh', () => {
 
     expect(refreshToken).toHaveBeenCalledTimes(1)
     expect(fetchLatestAnnouncement).toHaveBeenLastCalledWith('fresh-token')
-    expect(renderAnnouncement).toHaveBeenCalledWith(null, null)
+    expect(renderAnnouncement).toHaveBeenCalledWith(null, null, false)
   })
 })
 
@@ -168,12 +172,14 @@ describe('refreshAnnouncement credential retry recovery', () => {
         result: null,
         authError: true,
         hasFetchError: false,
+        notInChannel: false,
         fetchError: null,
       })
       .mockResolvedValueOnce({
         result: null,
         authError: false,
         hasFetchError: false,
+        notInChannel: false,
         fetchError: null,
       })
 
@@ -184,7 +190,7 @@ describe('refreshAnnouncement credential retry recovery', () => {
     )
 
     expect(fetchLatestAnnouncement).toHaveBeenLastCalledWith('cached-token')
-    expect(renderAnnouncement).toHaveBeenCalledWith(null, null)
+    expect(renderAnnouncement).toHaveBeenCalledWith(null, null, false)
   })
 })
 
@@ -207,6 +213,7 @@ describe('refreshAnnouncement credential retry with no recovery', () => {
       result: null,
       authError: true,
       hasFetchError: false,
+      notInChannel: false,
       fetchError: null,
     })
 
@@ -228,6 +235,7 @@ describe('refreshAnnouncement credential retry with no recovery', () => {
       result: null,
       authError: true,
       hasFetchError: false,
+      notInChannel: false,
       fetchError: null,
     })
     setupScreenlyMock({}, { display_errors: true })
@@ -268,6 +276,7 @@ describe('content caching on success', () => {
       result: message,
       authError: false,
       hasFetchError: false,
+      notInChannel: false,
       fetchError: null,
     })
 
@@ -303,6 +312,7 @@ describe('content failover when display_errors is off', () => {
       result: null,
       authError: false,
       hasFetchError: true,
+      notInChannel: false,
       fetchError: new Error('down'),
     })
 
@@ -326,6 +336,7 @@ describe('content failover when display_errors is off', () => {
       result: null,
       authError: false,
       hasFetchError: true,
+      notInChannel: false,
       fetchError: new Error('down'),
     })
 
@@ -343,6 +354,7 @@ describe('content failover when display_errors is off', () => {
       result: null,
       authError: false,
       hasFetchError: true,
+      notInChannel: false,
       fetchError: new Error('some unrelated failure'),
     })
 
@@ -370,6 +382,7 @@ describe('content failover does not apply', () => {
       result: null,
       authError: false,
       hasFetchError: true,
+      notInChannel: false,
       fetchError: new Error('down'),
     })
     setupScreenlyMock({}, { display_errors: true })
@@ -380,8 +393,58 @@ describe('content failover does not apply', () => {
         mock(async () => {}),
         noopResolveSenderName
       )
-    ).rejects.toThrow('No channel messages could be loaded.')
+    ).rejects.toThrow('Failed to fetch channel messages.')
     expect(readEdgeAppCache).not.toHaveBeenCalled()
     expect(renderAnnouncement).not.toHaveBeenCalled()
+  })
+})
+
+describe('not_in_channel always surfaces the invite card', () => {
+  test('renders the invite card even when display_errors is off and nothing is cached', async () => {
+    readEdgeAppCache.mockReturnValue(null)
+    fetchLatestAnnouncement.mockResolvedValue({
+      result: null,
+      authError: false,
+      hasFetchError: true,
+      notInChannel: true,
+      fetchError: null,
+    })
+
+    await refreshAnnouncement(
+      tokenRuntimeState,
+      mock(async () => {}),
+      noopResolveSenderName
+    )
+
+    expect(readEdgeAppCache).not.toHaveBeenCalled()
+    expect(writeEdgeAppCache).not.toHaveBeenCalled()
+    expect(renderAnnouncement).toHaveBeenCalledWith(null, null, true)
+  })
+
+  test('renders the invite card instead of falling back to cached content when display_errors is on', async () => {
+    readEdgeAppCache.mockReturnValue({
+      result: {
+        message: { ts: '1', user: null, username: 'bot', text: 'cached' },
+        permalink: null,
+        channelName: 'general',
+      },
+    })
+    fetchLatestAnnouncement.mockResolvedValue({
+      result: null,
+      authError: false,
+      hasFetchError: true,
+      notInChannel: true,
+      fetchError: null,
+    })
+    setupScreenlyMock({}, { display_errors: true })
+
+    await refreshAnnouncement(
+      tokenRuntimeState,
+      mock(async () => {}),
+      noopResolveSenderName
+    )
+
+    expect(readEdgeAppCache).not.toHaveBeenCalled()
+    expect(renderAnnouncement).toHaveBeenCalledWith(null, null, true)
   })
 })

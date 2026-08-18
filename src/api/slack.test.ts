@@ -4,7 +4,7 @@ mock.module('@screenly/edge-apps', () => ({
   getCorsProxyUrl: () => 'https://cors-proxy.example.com',
 }))
 
-const { getConversationInfo, getWorkspaceUrl, AuthError } =
+const { getConversationInfo, getWorkspaceUrl, AuthError, NotInChannelError } =
   await import('./slack')
 
 const ACCESS_TOKEN = 'abc'
@@ -73,6 +73,14 @@ describe('getConversationInfo', () => {
     await expect(
       getConversationInfo(ACCESS_TOKEN, CHANNEL_ID)
     ).rejects.toBeInstanceOf(AuthError)
+  })
+
+  test('rejects with NotInChannelError on a not_in_channel response', async () => {
+    fakeResponse(200, { ok: false, error: 'not_in_channel' })
+
+    await expect(
+      getConversationInfo(ACCESS_TOKEN, CHANNEL_ID)
+    ).rejects.toBeInstanceOf(NotInChannelError)
   })
 
   test('rejects with a generic error on other non-ok responses', async () => {
