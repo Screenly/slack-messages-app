@@ -135,7 +135,7 @@ export async function fetchLatestAnnouncement(accessToken: string): Promise<{
         authError: false,
         hasFetchError: true,
         notInChannel: true,
-        fetchError: null,
+        fetchError: err,
       }
     }
 

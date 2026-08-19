@@ -1,7 +1,7 @@
 import { html, type TemplateResult } from 'lit-html'
 import { announcementLayoutTemplate } from './announcement-layout'
 
-function inviteBotMainTemplate(): TemplateResult {
+function inviteAppMainTemplate(): TemplateResult {
   return html`
     <div class="announcement-main empty-state-main justify-center gap-3">
       <div class="announcement-text">Add Screenly to this channel</div>
@@ -17,7 +17,7 @@ export function inviteAppCardTemplate(
   channelLink: string | null
 ): TemplateResult {
   return announcementLayoutTemplate(
-    inviteBotMainTemplate(),
+    inviteAppMainTemplate(),
     channelLink,
     'View this channel on your phone'
   )

@@ -1,8 +1,8 @@
-import { render } from 'lit-html'
+import { render, type TemplateResult } from 'lit-html'
 import type { RenderableAnnouncement } from '../types'
 import { announcementCardTemplate } from './announcement-card'
 import { emptyStateCardTemplate } from './empty-state'
-import { inviteAppCardTemplate } from './invite-bot-state'
+import { inviteAppCardTemplate } from './invite-app-state'
 
 export function renderAnnouncement(
   announcement: RenderableAnnouncement | null,
@@ -12,13 +12,15 @@ export function renderAnnouncement(
   const container = document.getElementById('announcement-container')
   if (!container) return
 
-  render(
-    needsInvite
-      ? inviteAppCardTemplate(channelLink)
-      : announcement
-        ? announcementCardTemplate(announcement)
-        : emptyStateCardTemplate(channelLink),
-    container
-  )
+  let template: TemplateResult
+  if (needsInvite) {
+    template = inviteAppCardTemplate(channelLink)
+  } else if (announcement) {
+    template = announcementCardTemplate(announcement)
+  } else {
+    template = emptyStateCardTemplate(channelLink)
+  }
+
+  render(template, container)
   container.style.display = 'flex'
 }
