@@ -3,6 +3,7 @@ import { reportError } from '@screenly/edge-apps/utils'
 import { DEFAULT_SHOW_QR_CODE, DEFAULT_SHOW_SENDER_NAMES } from '../constants'
 import {
   AuthError,
+  NotInChannelError,
   getConversationHistory,
   getConversationInfo,
   getMessagePermalink,
@@ -105,18 +106,36 @@ export async function fetchLatestAnnouncement(accessToken: string): Promise<{
   result: FetchedMessage | null
   authError: boolean
   hasFetchError: boolean
+  notInChannel: boolean
   fetchError: Error | null
 }> {
   try {
     const result = await fetchLatestMessage(accessToken)
-    return { result, authError: false, hasFetchError: false, fetchError: null }
+    return {
+      result,
+      authError: false,
+      hasFetchError: false,
+      notInChannel: false,
+      fetchError: null,
+    }
   } catch (err) {
     if (err instanceof AuthError) {
       return {
         result: null,
         authError: true,
         hasFetchError: false,
+        notInChannel: false,
         fetchError: null,
+      }
+    }
+
+    if (err instanceof NotInChannelError) {
+      return {
+        result: null,
+        authError: false,
+        hasFetchError: true,
+        notInChannel: true,
+        fetchError: err,
       }
     }
 
@@ -129,6 +148,7 @@ export async function fetchLatestAnnouncement(accessToken: string): Promise<{
       result: null,
       authError: false,
       hasFetchError: true,
+      notInChannel: false,
       fetchError: error,
     }
   }

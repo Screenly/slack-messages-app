@@ -57,6 +57,10 @@ function resolveContent(
   const channelId = getSettingWithDefault('channel_id', '')
   const cacheKey = `content:${channelId}`
 
+  if (response.notInChannel) {
+    return { accessToken, ...response }
+  }
+
   if (!response.hasFetchError) {
     writeEdgeAppCache(CACHE_NAMESPACE, cacheKey, { result: response.result })
     return { accessToken, ...response }
@@ -74,6 +78,7 @@ function resolveContent(
     result: cached.result,
     authError: false,
     hasFetchError: false,
+    notInChannel: false,
     fetchError: null,
   }
 }
@@ -116,9 +121,10 @@ async function loadAnnouncement(
 
 function renderAnnouncementContainer(
   announcement: Parameters<typeof renderAnnouncement>[0],
-  channelLink: string | null = null
+  channelLink: string | null = null,
+  needsInvite = false
 ): void {
-  renderAnnouncement(announcement, channelLink)
+  renderAnnouncement(announcement, channelLink, needsInvite)
 }
 
 async function getEmptyStateChannelLink(
@@ -138,8 +144,18 @@ export async function refreshAnnouncement(
 
   if ('skipped' in load) return
 
-  if (load.authError || load.hasFetchError) {
-    throw new Error('No channel messages could be loaded.')
+  if (load.authError) {
+    throw new Error('Slack authentication failed.')
+  }
+
+  if (load.notInChannel) {
+    const channelLink = await getEmptyStateChannelLink(load.accessToken)
+    renderAnnouncementContainer(null, channelLink, true)
+    return
+  }
+
+  if (load.hasFetchError) {
+    throw new Error('Failed to fetch channel messages.')
   }
 
   if (!load.result) {

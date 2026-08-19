@@ -1,18 +1,8 @@
 import { getSettingWithDefault } from '@screenly/edge-apps'
 import { html, nothing, type TemplateResult } from 'lit-html'
 import { DEFAULT_SHOW_SENDER_NAMES } from '../constants'
+import { formatSlackTimestamp } from '../localization'
 import type { RenderableAnnouncement } from '../types'
-
-const timeFormatter = new Intl.DateTimeFormat(undefined, {
-  hour: 'numeric',
-  minute: '2-digit',
-})
-
-function formatTimestamp(ts: string): string {
-  const millis = Number.parseFloat(ts) * 1000
-  if (Number.isNaN(millis)) return ''
-  return timeFormatter.format(new Date(millis))
-}
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -30,7 +20,7 @@ export function announcementHeaderTemplate(
   )
   const subline = [
     announcement.channelName && `#${announcement.channelName}`,
-    formatTimestamp(announcement.ts),
+    formatSlackTimestamp(announcement.ts),
   ]
     .filter(Boolean)
     .join(' · ')

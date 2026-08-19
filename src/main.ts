@@ -11,6 +11,7 @@ import { getRuntimeState, refreshToken } from './api/credentials'
 import { resolveSenderName } from './api/users'
 import { refreshAnnouncement } from './announcement'
 import { DEFAULT_REFRESH_INTERVAL_SECONDS } from './constants'
+import { initLocalization } from './localization'
 
 setupSentry('slack-messages', {
   'slack-messages': { screenName: screenly.metadata.screen_name },
@@ -18,6 +19,7 @@ setupSentry('slack-messages', {
 
 async function startApplication(): Promise<void> {
   setupErrorHandling()
+  await initLocalization()
 
   const update = () =>
     refreshAnnouncement(getRuntimeState, refreshToken, resolveSenderName)

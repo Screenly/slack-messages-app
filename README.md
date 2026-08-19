@@ -35,6 +35,8 @@ settings:
   access_token: 'xoxb-your-bot-token'
   channel_id: 'C0123ABCDEF'
   display_errors: 'false'
+  override_locale: 'en'
+  override_timezone: ''
   refresh_interval: '60'
   show_qr_code: 'true'
   show_sender_names: 'true'
@@ -85,15 +87,19 @@ screenly edge-app instance create
 
 ## Configuration
 
-| Setting             | Type   | Required | Description                                                                                           |
-| ------------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------- |
-| `access_token`      | secret | No       | For testing only. In production, the token is fetched dynamically via the API.                        |
-| `channel_id`        | string | Yes      | Slack channel ID to display messages from                                                             |
-| `refresh_interval`  | string | No       | How often (in seconds) to refresh Slack messages. Default: `60`                                       |
-| `display_errors`    | string | No       | Display errors on screen for debugging (`true`/`false`). Default: `false`                             |
-| `show_qr_code`      | string | No       | Show a QR code linking to the message on Slack (`true`/`false`). Default: `true`                      |
-| `show_sender_names` | string | No       | Resolve and display each message's sender name (`true`/`false`). Default: `true`                      |
-| `sentry_dsn`        | secret | No       | Sentry DSN for reporting credential and content-load errors. Global setting — leave empty to disable. |
+| Setting             | Type   | Required | Description                                                                                                                                                                                   |
+| ------------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `access_token`      | secret | No       | For testing only. In production, the token is fetched dynamically via the API.                                                                                                                |
+| `channel_id`        | string | Yes      | Slack channel ID to display messages from                                                                                                                                                     |
+| `refresh_interval`  | string | No       | How often (in seconds) to refresh Slack messages. Default: `60`                                                                                                                               |
+| `display_errors`    | string | No       | Display errors on screen for debugging (`true`/`false`). Default: `false`. Advanced.                                                                                                          |
+| `override_locale`   | string | No       | Override locale with a [BCP 47](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl#locales_argument) tag (e.g. `en`, `fr`, `de`). Default: `en`. Advanced. |
+| `override_timezone` | string | No       | Override timezone with an [IANA time zone](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) (e.g. `Europe/London`). Defaults to the device timezone if blank. Advanced.          |
+| `show_qr_code`      | string | No       | Show a QR code linking to the message on Slack (`true`/`false`). Default: `true`                                                                                                              |
+| `show_sender_names` | string | No       | Resolve and display each message's sender name (`true`/`false`). Default: `true`                                                                                                              |
+| `sentry_dsn`        | secret | No       | Sentry DSN for reporting credential and content-load errors. Global setting — leave empty to disable.                                                                                         |
+
+`override_locale` and `override_timezone` apply to both the header clock/date and the Slack message timestamp, so they stay on the same clock. Leave `override_timezone` blank to use the screen's location. The header shows the current time; the card shows when that message was sent.
 
 ## Authentication
 
