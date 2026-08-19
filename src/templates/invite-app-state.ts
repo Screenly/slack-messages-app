@@ -6,8 +6,8 @@ function inviteAppMainTemplate(): TemplateResult {
     <div class="announcement-main empty-state-main justify-center gap-3">
       <div class="announcement-text">Add Screenly to this channel</div>
       <div class="empty-state-subtitle text-muted-subtitle">
-        Type <code>/invite</code> in the channel, choose "Add agents and apps
-        to this channel", then search for and add Screenly
+        Type <code>/invite</code> in the channel, choose "Add agents and apps to
+        this channel", then search for and add Screenly
       </div>
     </div>
   `
