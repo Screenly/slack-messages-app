@@ -1,3 +1,5 @@
+[![Version](https://img.shields.io/github/v/release/Screenly/slack-messages-app)](https://github.com/Screenly/slack-messages-app/releases/latest)
+
 # Slack Messages App
 
 Displays the latest message from a Slack channel, full screen, on your Screenly digital signage screens using the Slack Web API. Built for sharing announcements — for example, a private channel dedicated to a set of screens — rather than following high-traffic channels. The channel itself is never shown on screen — only the message text, and optionally its sender's name and a QR code linking back to it on Slack.
@@ -83,6 +85,22 @@ This generates screenshots for all supported resolutions into the `screenshots/`
 screenly edge-app create --name slack-messages-app --in-place
 bun run deploy
 screenly edge-app instance create
+```
+
+### Releasing
+
+Pushes to `main` deploy to stage automatically. To release to production, tag a commit on `main` and push the tag (the workflow refuses tags not on `main`):
+
+```bash
+git checkout main && git pull
+git tag v26.10.0
+git push origin v26.10.0
+```
+
+Then publish a GitHub Release whose notes list the pull requests merged since the previous release. Add `--draft` to review the notes before publishing:
+
+```bash
+gh release create v26.10.0 --verify-tag --generate-notes --title v26.10.0
 ```
 
 ## Configuration
