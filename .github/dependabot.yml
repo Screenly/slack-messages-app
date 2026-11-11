@@ -9,6 +9,11 @@ updates:
       bun:
         patterns:
           - '*'
+    ignore:
+      # typescript-eslint (used by @screenly/edge-apps for linting) does not
+      # support TypeScript 7 yet. Remove once it does.
+      - dependency-name: 'typescript'
+        versions: ['>=7']
 
   - package-ecosystem: 'github-actions'
     directory: '/'
