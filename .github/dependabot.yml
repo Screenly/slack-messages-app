@@ -9,6 +9,12 @@ updates:
       bun:
         patterns:
           - '*'
+    ignore:
+      # TypeScript 7 is the native (Go) compiler and ships no JS compiler API,
+      # which typescript-eslint (used by `edge-apps-scripts lint`) requires.
+      # Unpin once typescript-eslint supports TypeScript 7.
+      - dependency-name: 'typescript'
+        versions: ['>=7.0.0']
 
   - package-ecosystem: 'github-actions'
     directory: '/'
